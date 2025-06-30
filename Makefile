@@ -1,6 +1,6 @@
 # Compiler and flags
 CC := gcc
-CFLAGS := -Wall -Wextra -Iinclude -g
+CFLAGS := -Wall -Wextra -Iinclude -ggdb
 LDFLAGS := 
 
 # Directories
@@ -9,13 +9,15 @@ INCLUDE_DIR := include
 BUILD_DIR := build
 TEST_DIR := tests
 
-# Automatically find all source files
+# Source and object files
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
 
-# Test files
+# Exclude main.o from test builds
+TEST_OBJ_SRC := $(filter-out $(SRC_DIR)/main.c, $(SRC_FILES))
+TEST_OBJ := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(TEST_OBJ_SRC))
 TEST_SRC := $(wildcard $(TEST_DIR)/*.c)
-TEST_OBJ := $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%.test.o, $(TEST_SRC))
+TEST_OBJ += $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%.test.o, $(TEST_SRC))
 TEST_BIN := $(BUILD_DIR)/test_runner
 
 # Final executable
@@ -41,10 +43,11 @@ $(BUILD_DIR):
 
 test: $(TEST_BIN)
 	@echo "Running tests..."
+	@echo $(TEST_SRC)
 	./$(TEST_BIN)
 
 # Link test binary
-$(TEST_BIN): $(OBJ_FILES) $(TEST_OBJ)
+$(TEST_BIN): $(TEST_OBJ)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Compile test files
