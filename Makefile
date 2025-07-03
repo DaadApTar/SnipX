@@ -1,7 +1,7 @@
 # Compiler and flags
 CC := gcc
 CFLAGS := -Wall -Wextra -Iinclude -ggdb
-LDFLAGS := -lX11 -lXinerama
+LDFLAGS := -lX11 -lXext -lXinerama -lavcodec -lavformat -lavutil -lswscale 
 
 # Directories
 SRC_DIR := src
