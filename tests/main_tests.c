@@ -1,4 +1,7 @@
 #include <X11/X.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,16 +11,11 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
 
-#include <libavcodec/codec_id.h>
-#include <libavcodec/packet.h>
-#include <libavformat/avio.h>
-#include <libavutil/frame.h>
-#include <libavutil/pixfmt.h>
-#include <libavutil/rational.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
+#include <time.h>
 
 #include "circular_array.h"
 
@@ -109,6 +107,8 @@ void test_Xscreenshot() {
   XCloseDisplay(display);
 }
 
+#define FRAME_NS (long)((double)1/(double)60*1e9)
+
 void test_Xvideo() {
   circular_array *array = circular_array_init(600, sizeof(XImage *));
   Display *display = XOpenDisplay(0);
@@ -131,110 +131,84 @@ void test_Xvideo() {
   short screen_height = screens[0].height;
 
   for (int i = 0; i < 600; ++i) {
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     XImage *image = XGetImage(display, root, screen_x, screen_y, screen_width, screen_height, AllPlanes, ZPixmap);
     if (!image) {
       fprintf(stderr, RED"Cannot get image.\n"RESET);
       return;
     }
     circular_array_push(array, image, i);
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
+    long sleep_ns = FRAME_NS - elapsed_ns;
+    if (elapsed_ns < FRAME_NS) {
+      struct timespec sleep_time = {
+        .tv_sec = sleep_ns / 1e9,
+        .tv_nsec = sleep_ns % (long)1e9
+      };
+      nanosleep(&sleep_time, 0);
+    }
   }
 
   // FFmpeg part
- av_log_set_level(AV_LOG_DEBUG);
- const char* filename = "test_xvideo.mp4";
-  const AVCodec *codec;
-  AVCodecContext *codec_ctx = 0;
-  AVFormatContext *format_ctx = 0;
-  AVFrame *frame;
-  AVPacket *packet;
 
-  codec = avcodec_find_encoder(AV_CODEC_ID_H264);
-  codec_ctx = avcodec_alloc_context3(codec);
-  avformat_alloc_output_context2(&format_ctx, 0, 0, filename);
+  int pipefd[2];
 
-  packet = av_packet_alloc();
-
-  codec_ctx->bit_rate = 8000000;
-  codec_ctx->width = screen_width;
-  codec_ctx->height = screen_height;
-  codec_ctx->time_base = (AVRational) {1, 60};
-  codec_ctx->framerate = (AVRational) {60, 1};
-  codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
-  codec_ctx->gop_size = 10;
-  codec_ctx->max_b_frames = 2;
-  codec_ctx->qmin = 10;
-  codec_ctx->qmax = 51;
-
-  avcodec_open2(codec_ctx, codec, 0);
-
-  AVStream *stream = avformat_new_stream(format_ctx, 0);
-  stream->id = format_ctx->nb_streams -1;
-  stream->time_base = codec_ctx->time_base;
-  avcodec_parameters_from_context(stream->codecpar, codec_ctx);
-  avio_open(&format_ctx->pb, filename, AVIO_FLAG_WRITE);
-
-  avformat_write_header(format_ctx, 0);
+  if (pipe(pipefd) < 0) {
+    fprintf(stderr, RED"Cannot create pipe.\n"RESET);
+    return;
+  }
   
-  frame = av_frame_alloc();
-  frame->format = codec_ctx->pix_fmt;
-  frame->width = codec_ctx->width;
-  frame->height = codec_ctx->height;
+  pid_t ffmpeg = fork();
+  if (ffmpeg < 0) {
+    fprintf(stderr, RED"Cannot create fork as a child: %s\n"RESET, strerror(errno));
+    return;
+  }
 
-  av_frame_get_buffer(frame, 32);
+  char resolution[32];
+  snprintf(resolution, sizeof(resolution), "%dx%d", screen_width, screen_height);
 
-  struct SwsContext *sws_ctx = sws_getContext(screen_width, screen_height, AV_PIX_FMT_BGR0,
-                                              screen_width, screen_height, AV_PIX_FMT_YUV420P,
-                                              SWS_BILINEAR, 0, 0, 0);
+  if (ffmpeg == 0) {
+    if (dup2(pipefd[0], STDIN_FILENO) < 0) {
+      fprintf(stderr, RED"Cannot reopen read end of pipe as stdin.\n"RESET);
+      return;
+    }
+    close(pipefd[1]);
+    int status_code = execlp("ffmpeg",
+                             "ffmpeg",
+                             "-loglevel", "verbose",
+                             "-y",
 
-  XImage *dst;
+                             "-f", "rawvideo",
+                             "-pix_fmt", "bgr0",
+                             "-s", resolution,
+                             "-r", "60",
+                             "-i", "-",
+
+                             "-c:v", "libx264",
+                             "-vb", "2500k",
+                             "-c:a", "aac",
+                             "-ab", "200k",
+                             "-pix_fmt", "yuv420p",
+                             "test_xvideo.mp4", (char *)NULL);
+
+    if (status_code < 0) {
+      fprintf(stderr, RED"Cannot run ffmpeg as a child process: %s\n"RESET, strerror(errno));
+      return;
+    }
+  }
+
+  close(pipefd[0]);
+
+  XImage *frame;
   for (int i = 0; i < 600; ++i) {
-    av_frame_make_writable(frame);
-    circular_array_get(array, i, (void **)&dst);
-
-    uint8_t const *src_slices[1] = { (uint8_t *)dst->data };
-    int src_stride[1] = {4 * screen_width};
-
-    sws_scale(sws_ctx, src_slices, src_stride, 0, screen_height, frame->data, frame->linesize);
-    frame->pts = i;
-    int ret = avcodec_send_frame(codec_ctx, frame);
-
-    if (ret < 0) {
-      fprintf(stderr, RED"Error sending a frame for encoding.\n"RESET);
-      return;
-    }
-
-    while ((ret = avcodec_receive_packet(codec_ctx, packet)) == 0) {
-      packet->stream_index = stream->index;
-      ret = av_interleaved_write_frame(format_ctx, packet);
-      if (ret < 0) {
-        fprintf(stderr, RED"Error writing packet: %s\n"RESET, av_err2str(ret));
-        return;
-      }
-      av_packet_unref(packet);
-      avcodec_receive_packet(codec_ctx, packet);
-    }
-    if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
-        fprintf(stderr, RED"Error receiving packet from encoder: %s.\n"RESET, av_err2str(ret));
-        return;
-    }
+    circular_array_get(array, i, (void *)&frame);
+    write(pipefd[1], frame->data, sizeof(uint32_t) * screen_width * screen_height);
   }
-  avcodec_send_frame(codec_ctx, 0);
-  int ret;
-  while ((ret = avcodec_receive_packet(codec_ctx, packet)) == 0) {
-    packet->stream_index = stream->index;
-    av_interleaved_write_frame(format_ctx, packet);
-    av_packet_unref(packet);
-  }
-  if (ret != AVERROR_EOF) {
-      fprintf(stderr, RED"Error flushing encoder: %s.\n"RESET, av_err2str(ret));
-      return;
-  }
-
-  av_write_trailer(format_ctx);
-
-  avcodec_free_context(&codec_ctx);
-  av_frame_free(&frame);
-  av_packet_free(&packet);
+  close(pipefd[1]);
+  waitpid(ffmpeg, 0, 0);
 
   XFree(screens);
   XCloseDisplay(display);
