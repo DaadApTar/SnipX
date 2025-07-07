@@ -1,4 +1,6 @@
 #include <X11/X.h>
+#include <pulse/def.h>
+#include <pulse/sample.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -17,7 +19,11 @@
 
 #include <time.h>
 
+#include <pulse/simple.h>
+#include <pulse/error.h>
+
 #include "circular_array.h"
+#include "ffmpeg.h"
 
 void test_circular_array() {
   test test = {.name = "circular array"};
@@ -108,10 +114,29 @@ void test_Xscreenshot() {
 }
 
 #define FRAME_NS (long)((double)1/(double)60*1e9)
+#define SAMPLE_RATE 44100
+#define CHANNELS 2
+#define BYTES_PER_SAMPLE 2
+#define FPS 60
+#define AUDIO_BYTES_PER_FRAME ((SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE) / FPS)
 
 void test_Xvideo() {
-  circular_array *array = circular_array_init(600, sizeof(XImage *));
+  circular_array *video_buffer = circular_array_init(600, sizeof(XImage *));
+  circular_array *audio_buffer = circular_array_init(600, sizeof(uint8_t *));
   Display *display = XOpenDisplay(0);
+  static const pa_sample_spec sample_spec = {
+    .format = PA_SAMPLE_S16LE,
+    .rate = SAMPLE_RATE,
+    .channels = CHANNELS
+  };
+  pa_simple *simple = 0;
+  int error;
+
+  if ((simple = pa_simple_new(0, "snipx", PA_STREAM_RECORD,
+                              0, "record", &sample_spec, 0, 0, &error)) == 0) {
+    fprintf(stderr, RED"Cannot create PulseAudio connection: %s.\n"RESET, pa_strerror(error));
+    return;
+  }
   int minor, major;
   if (!XineramaQueryExtension(display, &minor, &major)) {
     fprintf(stderr, RED"Xinerama is not supported.\n"RESET);
@@ -130,15 +155,22 @@ void test_Xvideo() {
   short screen_width = screens[0].width;
   short screen_height = screens[0].height;
 
+  // TODO: capturing the screen is very long. Use XShm
   for (int i = 0; i < 600; ++i) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    uint8_t *audio_buf = malloc(AUDIO_BYTES_PER_FRAME);
     XImage *image = XGetImage(display, root, screen_x, screen_y, screen_width, screen_height, AllPlanes, ZPixmap);
     if (!image) {
       fprintf(stderr, RED"Cannot get image.\n"RESET);
       return;
     }
-    circular_array_push(array, image, i);
+    if (pa_simple_read(simple, audio_buf, AUDIO_BYTES_PER_FRAME, &error) < 0) {
+      fprintf(stderr, RED"Cannot read from PulseAudio: %s.\n"RESET, pa_strerror(error));
+      return;
+    }
+    circular_array_push(video_buffer, image, i);
+    circular_array_push(audio_buffer, audio_buf, i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -151,64 +183,29 @@ void test_Xvideo() {
       nanosleep(&sleep_time, 0);
     }
   }
+  fclose(file);
+  pa_simple_free(simple);
 
   // FFmpeg part
 
-  int pipefd[2];
+  ffmpeg *sound = ffmpeg_init_sound("test_xsound.aac");
 
-  if (pipe(pipefd) < 0) {
-    fprintf(stderr, RED"Cannot create pipe.\n"RESET);
-    return;
+  uint8_t *audio;
+  for (int i = 0; i < 600; ++i) {
+    circular_array_get(audio_buffer, i, (void *)&audio);
+    ffmpeg_push_frame(sound, audio, AUDIO_BYTES_PER_FRAME);
   }
-  
-  pid_t ffmpeg = fork();
-  if (ffmpeg < 0) {
-    fprintf(stderr, RED"Cannot create fork as a child: %s\n"RESET, strerror(errno));
-    return;
-  }
-
-  char resolution[32];
-  snprintf(resolution, sizeof(resolution), "%dx%d", screen_width, screen_height);
-
-  if (ffmpeg == 0) {
-    if (dup2(pipefd[0], STDIN_FILENO) < 0) {
-      fprintf(stderr, RED"Cannot reopen read end of pipe as stdin.\n"RESET);
-      return;
-    }
-    close(pipefd[1]);
-    int status_code = execlp("ffmpeg",
-                             "ffmpeg",
-                             "-loglevel", "verbose",
-                             "-y",
-
-                             "-f", "rawvideo",
-                             "-pix_fmt", "bgr0",
-                             "-s", resolution,
-                             "-r", "60",
-                             "-i", "-",
-
-                             "-c:v", "libx264",
-                             "-vb", "2500k",
-                             "-c:a", "aac",
-                             "-ab", "200k",
-                             "-pix_fmt", "yuv420p",
-                             "test_xvideo.mp4", (char *)NULL);
-
-    if (status_code < 0) {
-      fprintf(stderr, RED"Cannot run ffmpeg as a child process: %s\n"RESET, strerror(errno));
-      return;
-    }
-  }
-
-  close(pipefd[0]);
+  free(audio);
+  ffmpeg_close(sound);
 
   XImage *frame;
+  ffmpeg *video = ffmpeg_init_video("test_xsound.aac", "test_xvideo.mp4", screen_width, screen_height, FPS);
   for (int i = 0; i < 600; ++i) {
-    circular_array_get(array, i, (void *)&frame);
-    write(pipefd[1], frame->data, sizeof(uint32_t) * screen_width * screen_height);
+    circular_array_get(video_buffer, i, (void *)&frame);
+    ffmpeg_push_frame(video, frame->data, sizeof(uint32_t) * screen_width * screen_height);
   }
-  close(pipefd[1]);
-  waitpid(ffmpeg, 0, 0);
+  ffmpeg_close(video);
+  free(frame);
 
   XFree(screens);
   XCloseDisplay(display);
