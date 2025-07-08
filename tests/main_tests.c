@@ -183,7 +183,6 @@ void test_Xvideo() {
       nanosleep(&sleep_time, 0);
     }
   }
-  fclose(file);
   pa_simple_free(simple);
 
   // FFmpeg part

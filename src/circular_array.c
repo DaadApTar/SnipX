@@ -1,4 +1,5 @@
 #include "circular_array.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,21 +13,15 @@ circular_array *circular_array_init(size_t length, size_t size) {
     free(array);
     return 0;
   }
-  for (size_t i = 0; i < length; ++i) {
-    array->data[i] = 0;
-  }
   return array;
 }
 
 int circular_array_push(circular_array *array, void *data, size_t index) {
-  // FIXME: Probably memory leaks here, but I'm not sure about it rn.
-  /*
+  size_t idx = index % array->length;
   if (array->data[idx] != 0) {
     free(array->data[idx]);
   }
-  */
-  array->data[index % array->length] = data;
-  //memcpy(array->data[index % array->length], data, array->size);
+  array->data[idx] = data;
   return 0;
 }
 
