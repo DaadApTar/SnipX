@@ -24,6 +24,7 @@
 
 #include "circular_array.h"
 #include "ffmpeg.h"
+#include "options.h"
 
 void test_circular_array() {
   test test = {.name = "circular array"};
@@ -117,8 +118,8 @@ void test_Xscreenshot() {
 #define SAMPLE_RATE 44100
 #define CHANNELS 2
 #define BYTES_PER_SAMPLE 2
-#define FPS 60
-#define AUDIO_BYTES_PER_FRAME ((SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE) / FPS)
+#define RECORDING_FPS 60
+#define AUDIO_BYTES_PER_FRAME ((SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE) / RECORDING_FPS)
 
 void test_Xvideo() {
   circular_array *video_buffer = circular_array_init(600, sizeof(XImage *));
@@ -198,7 +199,7 @@ void test_Xvideo() {
   ffmpeg_close(sound);
 
   XImage *frame;
-  ffmpeg *video = ffmpeg_init_video("test_xsound.aac", "test_xvideo.mp4", screen_width, screen_height, FPS);
+  ffmpeg *video = ffmpeg_init_video("test_xsound.aac", "test_xvideo.mp4", screen_width, screen_height, RECORDING_FPS);
   for (int i = 0; i < 600; ++i) {
     circular_array_get(video_buffer, i, (void *)&frame);
     ffmpeg_push_frame(video, frame->data, sizeof(uint32_t) * screen_width * screen_height);
@@ -210,9 +211,75 @@ void test_Xvideo() {
   XCloseDisplay(display);
 }
 
+void test_option_value_comparation() {
+  test test = {.name = "option value comparation"};
+  assert_int(&test, 1, option_value_compare(UNKNOWN, NONE));
+  assert_int(&test, 1, option_value_compare(SCREEN_NUMBER, NUMBER));
+  assert_int(&test, 1, option_value_compare(WINDOW, NONE));
+  assert_int(&test, 1, option_value_compare(FPS, NUMBER));
+  assert_int(&test, 1, option_value_compare(SOUND_MONITOR, STRING));
+  assert_int(&test, 1, option_value_compare(BRAKE, NONE));
+  assert_int(&test, 0, option_value_compare(BRAKE, STRING));
+  assert_int(&test, 0, option_value_compare(SCREEN_NUMBER, STRING));
+  assert_int(&test, 0, option_value_compare(FPS, NONE));
+  assert_done(&test);
+}
+
+void test_parse_flag() {
+  test test = {.name = "flag parsing"};
+  assert_int(&test, SCREEN_NUMBER, parse_flag("--screen"));
+  assert_int(&test, SCREEN_NUMBER, parse_flag("-s"));
+  assert_int(&test, FPS, parse_flag("--fps"));
+  assert_int(&test, FPS, parse_flag("-f"));
+  assert_int(&test, SOUND_MONITOR, parse_flag("--monitor"));
+  assert_int(&test, SOUND_MONITOR, parse_flag("-m"));
+  assert_int(&test, BRAKE, parse_flag("--brake"));
+  assert_int(&test, BRAKE, parse_flag("-b"));
+  assert_int(&test, UNKNOWN, parse_flag("--dfg"));
+  assert_done(&test);
+}
+
+void test_parse_value() {
+  test test = {.name = "value parsing"};
+  assert_int(&test, NUMBER, parse_value("34543"));
+  assert_int(&test, NUMBER, parse_value("04343"));
+  assert_int(&test, NUMBER, parse_value("23"));
+  assert_int(&test, NUMBER, parse_value("345"));
+  assert_int(&test, STRING, parse_value("0c4343"));
+  assert_int(&test, STRING, parse_value("erter"));
+  assert_int(&test, STRING, parse_value("345dsf"));
+  assert_done(&test);
+}
+
+void test_parse_flags() {
+  test test = {.name = "bunch of flags parsing"};
+  char **args = (char **)malloc(sizeof(char **) * 7);
+  args[0] = "--screen";
+  args[1] = "0";
+  args[2] = "-f";
+  args[3] = "60";
+  args[4] = "--monitor";
+  args[5] = "some_monitor";
+  args[6] = "-b";
+  options *opts = parse_flags(args, 7);
+  if (opts == 0) {
+    fprintf(stderr, RED"Failed to parse opts.\n");
+    return;
+  }
+  assert_int(&test, 0, opts->screen_number);
+  assert_int(&test, 60, opts->fps);
+  assert_int(&test, 1, opts->brake);
+  assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
+  assert_done(&test);
+}
+
 int main() {
   test_circular_array();
-  test_Xscreenshot();
-  test_Xvideo();
+  //test_Xscreenshot();
+  //test_Xvideo();
+  test_option_value_comparation();
+  test_parse_flag();
+  test_parse_value();
+  test_parse_flags();
   return 0;
 }

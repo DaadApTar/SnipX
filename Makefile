@@ -1,5 +1,5 @@
 # Compiler and flags
-CC := gcc
+CC ?= gcc
 CFLAGS := -Wall -Wextra -Iinclude -ggdb
 LDFLAGS := -lX11  -lXinerama -lpulse-simple -lpulse 
 
