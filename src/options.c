@@ -10,13 +10,19 @@ void print_usage(char *program) {
   for (size_t i = 0; i < (int)sizeof(available_flags) / (int)sizeof(available_flags[0]); ++i) {
     flag available_flag = available_flags[i];
     fprintf(stderr, "\t-%c\t--%s\t\t%s\n", available_flag.short_flag,
-                                             available_flag.long_flag,
-                                             available_flag.description);
+                                           available_flag.long_flag,
+                                           available_flag.description);
   }
 }
 
 options *parse_flags(char **args, size_t size) {
-  options *opts = (options *)malloc(sizeof(options *));
+  options *opts = (options *)malloc(sizeof(options));
+  // Default values
+  opts->brake         = false;
+  opts->fps           = 30;
+  opts->screen_number = 0;
+  opts->sound_monitor = 0;
+  // Fill the opts.
   for (int i = 0; i < (int)size; ++i) {
     option_type option = parse_flag(args[i]); 
     value_type value = 0;
