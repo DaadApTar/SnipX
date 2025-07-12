@@ -2,7 +2,6 @@
 #include <pulse/def.h>
 #include <pulse/sample.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -13,8 +12,6 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
 
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <time.h>
@@ -122,93 +119,13 @@ void test_Xscreenshot() {
 #define AUDIO_BYTES_PER_FRAME ((SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE) / RECORDING_FPS)
 
 void test_Xvideo() {
-  circular_array *video_buffer = circular_array_init(600, sizeof(XImage *));
-  circular_array *audio_buffer = circular_array_init(600, sizeof(uint8_t *));
-  Display *display = XOpenDisplay(0);
-  static const pa_sample_spec sample_spec = {
-    .format = PA_SAMPLE_S16LE,
-    .rate = SAMPLE_RATE,
-    .channels = CHANNELS
-  };
-  pa_simple *simple = 0;
-  int error;
-
-  if ((simple = pa_simple_new(0, "snipx", PA_STREAM_RECORD,
-                              0, "record", &sample_spec, 0, 0, &error)) == 0) {
-    fprintf(stderr, RED"Cannot create PulseAudio connection: %s.\n"RESET, pa_strerror(error));
-    return;
-  }
-  int minor, major;
-  if (!XineramaQueryExtension(display, &minor, &major)) {
-    fprintf(stderr, RED"Xinerama is not supported.\n"RESET);
-    return;
-  }
-  if (!XineramaIsActive(display)) {
-    fprintf(stderr, RED"Xinerama is not active.\n"RESET);
-    return;
-  }
-
-  int num_screens = 0;
-  XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
-  Window root = DefaultRootWindow(display);
-  short screen_x = screens[0].x_org;
-  short screen_y = screens[0].y_org;
-  short screen_width = screens[0].width;
-  short screen_height = screens[0].height;
-
   // TODO: capturing the screen is very long. Use XShm
-  for (int i = 0; i < 600; ++i) {
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    uint8_t *audio_buf = malloc(AUDIO_BYTES_PER_FRAME);
-    XImage *image = XGetImage(display, root, screen_x, screen_y, screen_width, screen_height, AllPlanes, ZPixmap);
-    if (!image) {
-      fprintf(stderr, RED"Cannot get image.\n"RESET);
-      return;
-    }
-    if (pa_simple_read(simple, audio_buf, AUDIO_BYTES_PER_FRAME, &error) < 0) {
-      fprintf(stderr, RED"Cannot read from PulseAudio: %s.\n"RESET, pa_strerror(error));
-      return;
-    }
-    circular_array_push(video_buffer, image, i);
-    circular_array_push(audio_buffer, audio_buf, i);
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
-    long sleep_ns = FRAME_NS - elapsed_ns;
-    if (elapsed_ns < FRAME_NS) {
-      struct timespec sleep_time = {
-        .tv_sec = sleep_ns / 1e9,
-        .tv_nsec = sleep_ns % (long)1e9
-      };
-      nanosleep(&sleep_time, 0);
-    }
-  }
-  pa_simple_free(simple);
 
   // FFmpeg part
 
-  ffmpeg *sound = ffmpeg_init_sound("test_xsound.aac");
 
-  uint8_t *audio;
-  for (int i = 0; i < 600; ++i) {
-    circular_array_get(audio_buffer, i, (void *)&audio);
-    ffmpeg_push_frame(sound, audio, AUDIO_BYTES_PER_FRAME);
-  }
-  free(audio);
-  ffmpeg_close(sound);
-
-  XImage *frame;
-  ffmpeg *video = ffmpeg_init_video("test_xsound.aac", "test_xvideo.mp4", screen_width, screen_height, RECORDING_FPS);
-  for (int i = 0; i < 600; ++i) {
-    circular_array_get(video_buffer, i, (void *)&frame);
-    ffmpeg_push_frame(video, frame->data, sizeof(uint32_t) * screen_width * screen_height);
-  }
-  ffmpeg_close(video);
-  free(frame);
-
-  XFree(screens);
-  XCloseDisplay(display);
+  //XFree(screens);
+  //XCloseDisplay(display);
 }
 
 void test_option_value_comparation() {
