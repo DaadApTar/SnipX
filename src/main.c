@@ -28,13 +28,6 @@
 #define STOP_COMMAND {0xFA, 0xDE}
 #define STOP_COMMAND_SIZE 2
 
-pthread_mutex_t lock;
-circular_array *video_ring_buffer;
-circular_array *audio_ring_buffer;
-atomic_bool running_flag;
-atomic_int frame_counter;
-atomic_int video_frame_counter, audio_frame_counter;
-
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -91,8 +84,8 @@ int main(int argc, char **argv) {
 
   // Initialise ring buffers.
 
-  video_ring_buffer = circular_array_init(opts->fps * 10, sizeof(XImage *));
-  audio_ring_buffer = circular_array_init(opts->fps * 10, sizeof(uint8_t *));
+  circular_array_init(&video_ring_buffer, opts->fps * 10, sizeof(XImage));
+  circular_array_init(&audio_ring_buffer, opts->fps * 10, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
   // Initialise pulseaudio
   static const pa_sample_spec sample_spec = {
@@ -177,28 +170,26 @@ int main(int argc, char **argv) {
 
       // ffmpeg
 
-      ffmpeg *sound = ffmpeg_init_sound("test_xsound.aac");
+      ffmpeg *sound = ffmpeg_init_sound("output.aac");
 
       uint8_t *audio;
       int audio_start = atomic_load(&audio_frame_counter) - opts->fps * 10;
       if (audio_start < 0) audio_start = 0;
       for (int i = audio_start; i < atomic_load(&audio_frame_counter); ++i) {
-        circular_array_get(audio_ring_buffer, i, (void *)&audio);
+        audio = circular_array_get(&audio_ring_buffer, i);
         ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
       }
-      free(audio);
       ffmpeg_close(sound);
 
       XImage *frame;
-      ffmpeg *video = ffmpeg_init_video("test_xsound.aac", "test_xvideo.mp4", screen_width, screen_height, opts->fps);
+      ffmpeg *video = ffmpeg_init_video("output.aac", "output.mp4", screen_width, screen_height, opts->fps);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * 10;
       if (video_start < 0) video_start = 0;
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
-        circular_array_get(video_ring_buffer, i, (void *)&frame);
+        frame = circular_array_get(&video_ring_buffer, i);
         ffmpeg_push_frame(video, frame->data, sizeof(uint32_t) * screen_width * screen_height);
       }
       ffmpeg_close(video);
-      free(frame);
       
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);

@@ -32,8 +32,8 @@ typedef struct {
   int framerate;
 } audio_capturing_params;
 
-extern circular_array *video_ring_buffer;
-extern circular_array *audio_ring_buffer;
+extern circular_array  video_ring_buffer;
+extern circular_array  audio_ring_buffer;
 extern atomic_bool     running_flag;
 extern pthread_mutex_t lock;
 extern atomic_int      video_frame_counter, audio_frame_counter;

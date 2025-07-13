@@ -9,19 +9,27 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
+pthread_mutex_t lock;
+circular_array video_ring_buffer;
+circular_array audio_ring_buffer;
+atomic_bool running_flag;
+atomic_int frame_counter;
+atomic_int video_frame_counter, audio_frame_counter;
+
 void *thread_video_capturing(void *arg) {
   video_capturing_params *params = (video_capturing_params *)arg;
   long i = 0;
   while (atomic_load(&running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    // TODO: there's probably a memory leak
     XImage *image = XGetImage(params->display, params->window, params->screen_x, params->screen_y, params->screen_width, params->screen_height, AllPlanes, ZPixmap);
     if (!image) {
       pthread_mutex_lock(&lock);
       fprintf(stderr, "Cannot get image.\n");
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(video_ring_buffer, image, i);
+    circular_array_push(&video_ring_buffer, image, i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -51,13 +59,13 @@ void *thread_audio_capturing(void *arg) {
   while (atomic_load(&running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    uint8_t *audio_buf = malloc(SNIPX_PA_AUDIO_BYTES_PER_FRAME(params->framerate));
-    if (pa_simple_read(params->simple, audio_buf, SNIPX_PA_AUDIO_BYTES_PER_FRAME(params->framerate), &error) < 0) {
+    uint8_t audio_buf[SNIPX_PA_AUDIO_BYTES_PER_FRAME(params->framerate)];
+    if (pa_simple_read(params->simple, audio_buf, sizeof(audio_buf), &error) < 0) {
       pthread_mutex_lock(&lock);
       fprintf(stderr, "Cannot read from PulseAudio: %s.\n", pa_strerror(error));
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(audio_ring_buffer, audio_buf, i);
+    circular_array_push(&audio_ring_buffer, audio_buf, i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);

@@ -83,7 +83,7 @@ ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, in
 
     int status_code = execlp("ffmpeg",
                              "ffmpeg",
-                             "-loglevel", "verbose",
+                             "-loglevel", "debug",
                              "-y",
 
                              "-f", "rawvideo",
