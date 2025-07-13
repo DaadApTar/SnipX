@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-int circular_array_init(circular_array *array, size_t length, size_t size) {
+int circular_array_init(circular_array *array, size_t length, size_t item_size) {
   if (array == 0) return 1;
-  array->size = size;
+  array->size = item_size;
   array->length = length;
-  array->data = malloc(size * length);
+  array->data = malloc(item_size * length);
   if (array->data == 0) return 1;
   return 0;
 }

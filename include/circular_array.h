@@ -13,7 +13,7 @@ typedef struct {
  *  @param[in] size size of each item.
  *  @returns 0 if succeed, -1 on error.
  */
-int circular_array_init(circular_array *array, size_t length, size_t size);
+int circular_array_init(circular_array *array, size_t length, size_t item_size);
 
 /** @brief Pushes data into relative index.
  *  @param[in] array pointer to array.
