@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
 
   if (opts->help) {
     print_usage(program);
-      return 1;
+    return 0;
   }
 
   // Brake is highest priority task
