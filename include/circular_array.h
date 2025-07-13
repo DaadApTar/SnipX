@@ -10,7 +10,7 @@ typedef struct {
 /** @brief Initialises circular array.
  *  @param[out] array pointer to array to initialise.
  *  @param[in] length length of the array.
- *  @param[in] size size of each item.
+ *  @param[in] item_size size of each item.
  *  @returns 0 if succeed, -1 on error.
  */
 int circular_array_init(circular_array *array, size_t length, size_t item_size);
