@@ -53,7 +53,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname) {
   return result;
 }
 
-ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, int screen_height, int fps) {
+ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, int screen_height, int fps, int bitrate) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
   int ffmpeg_pipe[2];
 
@@ -81,9 +81,12 @@ ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, in
     char framerate[64];
     snprintf(framerate, sizeof(framerate), "%d", fps);
 
+    char bitrate_str[64];
+    snprintf(bitrate_str, sizeof(bitrate_str), "%d", bitrate);
+
     int status_code = execlp("ffmpeg",
                              "ffmpeg",
-                             "-loglevel", "debug",
+                             "-loglevel", "verbose",
                              "-y",
 
                              "-f", "rawvideo",
@@ -94,7 +97,7 @@ ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, in
                              "-i", soundname,
 
                              "-c:v", "libx264",
-                             "-vb", "2500k",
+                             "-vb", bitrate_str,
                              "-c:a", "aac",
                              "-ab", "200k",
                              "-pix_fmt", "yuv420p",

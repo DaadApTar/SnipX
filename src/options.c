@@ -9,27 +9,32 @@ void print_usage(char *program) {
   fprintf(stderr, "PARAMS:\n");
   for (size_t i = 0; i < (int)sizeof(available_flags) / (int)sizeof(available_flags[0]); ++i) {
     flag available_flag = available_flags[i];
-    fprintf(stderr, "\t-%c\t--%s\t\t%s\n", available_flag.short_flag,
-                                           available_flag.long_flag,
-                                           available_flag.description);
+    if (available_flag.short_flag != 0) fprintf(stderr, "\t-%c", available_flag.short_flag);
+    else printf("\t");
+    fprintf(stderr, "\t--%s\t\t%s\n", available_flag.long_flag,
+                                    available_flag.description);
   }
+  fprintf(stderr, "\n");
 }
 
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
   opts->brake         = false;
+  opts->help          = false;
   opts->fps           = 30;
   opts->screen_number = 0;
   opts->sound_monitor = 0;
+  opts->bitrate       = 2500000;
+  opts->length        = 10;
   // Fill the opts.
   for (int i = 0; i < (int)size; ++i) {
     option_type option = parse_flag(args[i]); 
-    value_type value = 0;
-    if (i != (int)size-1) {
-      value = parse_value(args[i+1]);
+    value_type actual_value = NONE;
+    if (get_value_type(option) != NONE && i != (int)size-1) {
+      actual_value = parse_value(args[i+1]);
     }
-    if(!option_value_compare(option, value)) {
+    if(get_value_type(option) != actual_value) {
       free(opts);
       return 0;
     }
@@ -43,15 +48,24 @@ options *parse_flags(char **args, size_t size) {
     case SOUND_MONITOR:
       opts->sound_monitor = args[i+1];
       break;
+    case LENGTH:
+      opts->length = atoi(args[i+1]);
+      break;
+    case BITRATE:
+      opts->bitrate = atoi(args[i+1]);
+      break;
     case BRAKE:
       opts->brake = true;
+      break;
+    case HELP:
+      opts->help = true;
       break;
     case WINDOW:
     default:
       free(opts);
       return 0;
     }
-    ++i;
+    i += get_value_type(option) != NONE;
   }
 
   return opts;
@@ -65,8 +79,26 @@ bool option_value_compare(option_type option, value_type value) {
   value_types[FPS] = NUMBER;
   value_types[SOUND_MONITOR] = STRING;
   value_types[BRAKE] = NONE;
+  value_types[LENGTH] = NUMBER;
+  value_types[BITRATE] = NUMBER;
+  value_types[HELP] = NONE;
 
   return value_types[option] == value;
+}
+
+value_type get_value_type(option_type option) {
+  value_type value_types[OPTION_TYPE_LENGTH];
+  value_types[UNKNOWN] = NONE;
+  value_types[SCREEN_NUMBER] = NUMBER;
+  value_types[WINDOW] = NONE;
+  value_types[FPS] = NUMBER;
+  value_types[SOUND_MONITOR] = STRING;
+  value_types[BRAKE] = NONE;
+  value_types[LENGTH] = NUMBER;
+  value_types[BITRATE] = NUMBER;
+  value_types[HELP] = NONE;
+
+  return value_types[option];
 }
 
 option_type parse_flag(char *flag) {
@@ -74,8 +106,9 @@ option_type parse_flag(char *flag) {
   char short_flag[64];
   for (int i = 0; i < (int)sizeof(available_flags) / (int)sizeof(available_flags[0]); ++i) {
     sprintf(long_flag, "--%s", available_flags[i].long_flag);
-    sprintf(short_flag, "-%c", available_flags[i].short_flag);
-    if (strcmp(flag, long_flag) == 0 || strcmp(flag, short_flag) == 0) return available_flags[i].type;
+    bool is_short_flag_exist = available_flags[i].short_flag != 0;
+    if (is_short_flag_exist) sprintf(short_flag, "-%c", available_flags[i].short_flag);
+    if (strcmp(flag, long_flag) == 0 || (is_short_flag_exist && strcmp(flag, short_flag) == 0)) return available_flags[i].type;
   }
   return UNKNOWN;
 }

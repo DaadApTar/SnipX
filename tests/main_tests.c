@@ -167,7 +167,7 @@ void test_parse_value() {
 
 void test_parse_flags() {
   test test = {.name = "bunch of flags parsing"};
-  char **args = (char **)malloc(sizeof(char **) * 7);
+  char **args = (char **)malloc(sizeof(char **) * 11);
   args[0] = "--screen";
   args[1] = "0";
   args[2] = "-f";
@@ -175,7 +175,11 @@ void test_parse_flags() {
   args[4] = "--monitor";
   args[5] = "some_monitor";
   args[6] = "-b";
-  options *opts = parse_flags(args, 7);
+  args[7] = "-l";
+  args[8] = "20";
+  args[9] = "--bitrate";
+  args[10] = "2500000";
+  options *opts = parse_flags(args, 11);
   if (opts == 0) {
     fprintf(stderr, RED"Failed to parse opts.\n");
     return;
@@ -183,6 +187,8 @@ void test_parse_flags() {
   assert_int(&test, 0, opts->screen_number);
   assert_int(&test, 60, opts->fps);
   assert_int(&test, 1, opts->brake);
+  assert_int(&test, 2500000, opts->bitrate);
+  assert_int(&test, 20, opts->length);
   assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
   assert_done(&test);
 }

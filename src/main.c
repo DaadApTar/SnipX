@@ -51,6 +51,11 @@ int main(int argc, char **argv) {
 
   uint8_t stop_command[] = STOP_COMMAND;
 
+  if (opts->help) {
+    print_usage(program);
+      return 1;
+  }
+
   // Brake is highest priority task
   if (opts->brake) {
     if(connect(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
@@ -84,8 +89,8 @@ int main(int argc, char **argv) {
 
   // Initialise ring buffers.
 
-  circular_array_init(&video_ring_buffer, opts->fps * 10, sizeof(XImage));
-  circular_array_init(&audio_ring_buffer, opts->fps * 10, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(XImage));
+  circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
   // Initialise pulseaudio
   static const pa_sample_spec sample_spec = {
@@ -173,7 +178,7 @@ int main(int argc, char **argv) {
       ffmpeg *sound = ffmpeg_init_sound("output.aac");
 
       uint8_t *audio;
-      int audio_start = atomic_load(&audio_frame_counter) - opts->fps * 10;
+      int audio_start = atomic_load(&audio_frame_counter) - opts->fps * opts->length;
       if (audio_start < 0) audio_start = 0;
       for (int i = audio_start; i < atomic_load(&audio_frame_counter); ++i) {
         audio = circular_array_get(&audio_ring_buffer, i);
@@ -182,8 +187,8 @@ int main(int argc, char **argv) {
       ffmpeg_close(sound);
 
       XImage *frame;
-      ffmpeg *video = ffmpeg_init_video("output.aac", "output.mp4", screen_width, screen_height, opts->fps);
-      int video_start = atomic_load(&video_frame_counter) - opts->fps * 10;
+      ffmpeg *video = ffmpeg_init_video("output.aac", "output.mp4", screen_width, screen_height, opts->fps, opts->bitrate);
+      int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
         frame = circular_array_get(&video_ring_buffer, i);

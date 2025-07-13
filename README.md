@@ -19,6 +19,7 @@ Saving replay.
 $ snipx -b
 ```
 ## TODO
-- [ ] Add --help (-h) flag
-- [ ] Add --length (-l) flag
+- [x] Add --help (-h) flag
+- [x] Add --length (-l) flag
+- [ ] Add capturing the screen via shared memory
 - [ ] Add NVENC support
