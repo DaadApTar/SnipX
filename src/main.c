@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <pulse/simple.h>
@@ -186,8 +187,15 @@ int main(int argc, char **argv) {
       }
       ffmpeg_close(sound);
 
+      time_t t = time(0);
+      struct tm tm = *localtime(&t);
+      
+      char filename[128] = {0};
+
+      snprintf(filename, sizeof(filename), "%d-%02d-%02d %02d:%02d:%02d.mp4", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
       XImage *frame;
-      ffmpeg *video = ffmpeg_init_video("output.aac", "output.mp4", screen_width, screen_height, opts->fps, opts->bitrate);
+      ffmpeg *video = ffmpeg_init_video("output.aac", filename, screen_width, screen_height, opts->fps, opts->bitrate);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
