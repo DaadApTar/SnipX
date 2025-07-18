@@ -88,11 +88,6 @@ int main(int argc, char **argv) {
   pthread_mutex_init(&lock, 0);
   atomic_store(&running_flag, 1);
 
-  // Initialise ring buffers.
-
-  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(XImage));
-  circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-
   // Initialise pulseaudio
   static const pa_sample_spec sample_spec = {
     .format   = PA_SAMPLE_S16LE,
@@ -139,6 +134,11 @@ int main(int argc, char **argv) {
   short screen_y = screens[opts->screen_number].y_org;
   short screen_width = screens[opts->screen_number].width;
   short screen_height = screens[opts->screen_number].height;
+
+  // Initialise ring buffers.
+
+  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
+  circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
   video_capturing_params video_params = {
     .display = display,
@@ -194,13 +194,13 @@ int main(int argc, char **argv) {
 
       snprintf(filename, sizeof(filename), "%d-%02d-%02d %02d:%02d:%02d.mp4", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-      XImage *frame;
+      uint32_t *frame;
       ffmpeg *video = ffmpeg_init_video("output.aac", filename, screen_width, screen_height, opts->fps, opts->bitrate);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
         frame = circular_array_get(&video_ring_buffer, i);
-        ffmpeg_push_frame(video, frame->data, sizeof(uint32_t) * screen_width * screen_height);
+        ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
       }
       ffmpeg_close(video);
       

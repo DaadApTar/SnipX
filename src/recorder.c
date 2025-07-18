@@ -3,11 +3,11 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <pulse/simple.h>
 #include <pulse/error.h>
+#include <X11/Xutil.h>
 
 pthread_mutex_t lock;
 circular_array video_ring_buffer;
@@ -22,14 +22,14 @@ void *thread_video_capturing(void *arg) {
   while (atomic_load(&running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    // TODO: there's probably a memory leak
     XImage *image = XGetImage(params->display, params->window, params->screen_x, params->screen_y, params->screen_width, params->screen_height, AllPlanes, ZPixmap);
     if (!image) {
       pthread_mutex_lock(&lock);
       fprintf(stderr, "Cannot get image.\n");
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(&video_ring_buffer, image, i);
+    circular_array_push(&video_ring_buffer, image->data, i);
+    XDestroyImage(image);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
