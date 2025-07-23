@@ -16,6 +16,8 @@ typedef enum {
   BRAKE,
   LENGTH,
   BITRATE,
+  ADDRESS,
+  PORT,
   HELP,
 
   OPTION_TYPE_LENGTH
@@ -44,6 +46,8 @@ typedef struct {
   bool brake;
   bool help;
   int length;
+  char *address;
+  int port;
   long bitrate;
 } options;
 
@@ -53,8 +57,10 @@ static flag available_flags[] = {
   {"fps",          'f', "Framerate.", FPS,                          .priority = 0},
   {"monitor",      'm', "Sound monitor to record.", SOUND_MONITOR,  .priority = 0},
   {"length",       'l', "Length of the video in seconds.", LENGTH,  .priority = 0},
-  {"bitrate",        0, "Video bitrate.", BITRATE,                   .priority = 0},
+  {"bitrate",        0, "Video bitrate.", BITRATE,                  .priority = 0},
   {"brake",        'b', "Brake the recording.", BRAKE,              .priority = 2},
+  {"address",      'a', "Server IP-address", ADDRESS,               .priority = 0},
+  {"port",         'p', "Server port", PORT,                        .priority = 0},
   {"help",         'h', "Print this message", HELP,                 .priority = 0},
 };
 

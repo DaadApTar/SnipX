@@ -57,6 +57,12 @@ options *parse_flags(char **args, size_t size) {
     case BRAKE:
       opts->brake = true;
       break;
+    case ADDRESS:
+      opts->address = args[i+1];
+      break;
+    case PORT:
+      opts->port = atoi(args[i+1]);
+      break;
     case HELP:
       opts->help = true;
       break;
@@ -71,7 +77,7 @@ options *parse_flags(char **args, size_t size) {
   return opts;
 }
 
-bool option_value_compare(option_type option, value_type value) {
+[[deprecated("use get_value_type() instead.")]] bool option_value_compare(option_type option, value_type value) {
   value_type value_types[OPTION_TYPE_LENGTH];
   value_types[UNKNOWN] = NONE;
   value_types[SCREEN_NUMBER] = NUMBER;
@@ -81,6 +87,8 @@ bool option_value_compare(option_type option, value_type value) {
   value_types[BRAKE] = NONE;
   value_types[LENGTH] = NUMBER;
   value_types[BITRATE] = NUMBER;
+  value_types[ADDRESS] = STRING;
+  value_types[PORT] = NUMBER;
   value_types[HELP] = NONE;
 
   return value_types[option] == value;
@@ -96,6 +104,8 @@ value_type get_value_type(option_type option) {
   value_types[BRAKE] = NONE;
   value_types[LENGTH] = NUMBER;
   value_types[BITRATE] = NUMBER;
+  value_types[ADDRESS] = STRING;
+  value_types[PORT] = NUMBER;
   value_types[HELP] = NONE;
 
   return value_types[option];

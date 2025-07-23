@@ -133,6 +133,8 @@ void test_option_value_comparation() {
   assert_int(&test, 1, option_value_compare(FPS, NUMBER));
   assert_int(&test, 1, option_value_compare(SOUND_MONITOR, STRING));
   assert_int(&test, 1, option_value_compare(BRAKE, NONE));
+  assert_int(&test, 1, option_value_compare(ADDRESS, STRING));
+  assert_int(&test, 1, option_value_compare(PORT, NUMBER));
   assert_int(&test, 0, option_value_compare(BRAKE, STRING));
   assert_int(&test, 0, option_value_compare(SCREEN_NUMBER, STRING));
   assert_int(&test, 0, option_value_compare(FPS, NONE));
@@ -147,6 +149,8 @@ void test_parse_flag() {
   assert_int(&test, FPS, parse_flag("-f"));
   assert_int(&test, SOUND_MONITOR, parse_flag("--monitor"));
   assert_int(&test, SOUND_MONITOR, parse_flag("-m"));
+  assert_int(&test, ADDRESS, parse_flag("--address"));
+  assert_int(&test, PORT, parse_flag("-p"));
   assert_int(&test, BRAKE, parse_flag("--brake"));
   assert_int(&test, BRAKE, parse_flag("-b"));
   assert_int(&test, UNKNOWN, parse_flag("--dfg"));
@@ -167,7 +171,7 @@ void test_parse_value() {
 
 void test_parse_flags() {
   test test = {.name = "bunch of flags parsing"};
-  char **args = (char **)malloc(sizeof(char **) * 11);
+  char **args = (char **)malloc(sizeof(char **) * 15);
   args[0] = "--screen";
   args[1] = "0";
   args[2] = "-f";
@@ -179,7 +183,11 @@ void test_parse_flags() {
   args[8] = "20";
   args[9] = "--bitrate";
   args[10] = "2500000";
-  options *opts = parse_flags(args, 11);
+  args[11] = "-p";
+  args[12] = "4227";
+  args[13] = "--address";
+  args[14] = "0.0.0.0";
+  options *opts = parse_flags(args, 15);
   if (opts == 0) {
     fprintf(stderr, RED"Failed to parse opts.\n");
     return;
@@ -190,6 +198,8 @@ void test_parse_flags() {
   assert_int(&test, 2500000, opts->bitrate);
   assert_int(&test, 20, opts->length);
   assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
+  assert_int(&test, 4227, opts->port);
+  assert_int(&test, 0, strcmp("0.0.0.0", opts->address));
   assert_done(&test);
 }
 
