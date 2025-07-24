@@ -1,0 +1,3 @@
+[submodule "tools/snipx-sender"]
+	path = tools/snipx-sender
+	url = https://gitlab.com/snipx-project/snipx-sender
