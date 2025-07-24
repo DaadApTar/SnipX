@@ -69,6 +69,9 @@ int main(int argc, char **argv) {
     if (bytes_sent < 0) {
       ERROR_ERNO(&logger);
     }
+    log_print(&logger, LOG_INFO, "Exiting.\n");
+    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+    log_close(&logger);
     return 0;
   }
 
@@ -227,7 +230,7 @@ int main(int argc, char **argv) {
   pthread_mutex_destroy(&lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");
-  log_print(&logger, LOG_INFO, "File is saved as %s\n", logger.filename);
+  log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
   log_close(&logger);
   return 0;
 }
