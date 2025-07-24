@@ -3,11 +3,14 @@ CC ?= gcc
 CFLAGS := -Wall -Wextra -Iinclude -ggdb
 LDFLAGS := -lX11 -lXinerama -lpulse-simple -lpulse -lpthread
 
+SENDER ?= true
+
 # Directories
 SRC_DIR := src
 INCLUDE_DIR := include
 BUILD_DIR := build
 TEST_DIR := tests
+SNIPX_SENDER_DIR = ./tools/snipx-sender
 
 # Source and object files
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
@@ -22,14 +25,20 @@ TEST_BIN := $(BUILD_DIR)/test_runner
 
 # Final executable
 TARGET := $(BUILD_DIR)/snipx
+SENDER_TARGET := $(BUILD_DIR)/snipx-sender
 
 .PHONY: all clean test
 
-all: $(TARGET)
+all: $(TARGET) $(SENDER_TARGET)
 
 # Link final app
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(SENDER_TARGET):
+ifeq ($(SENDER), true)
+	cd $(SNIPX_SENDER_DIR) && go build -o ../../$(BUILD_DIR)
+endif
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
