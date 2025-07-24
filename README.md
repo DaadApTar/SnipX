@@ -18,6 +18,8 @@ Saving replay.
 ```console
 $ snipx -b
 ```
+## Logging
+By default, snipx saves logs in `$HOME/.local/share/snipx/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
 ## TODO
 - [x] Add --help (-h) flag
 - [x] Add --length (-l) flag
