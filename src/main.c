@@ -8,8 +8,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <stdio.h>
-#include <time.h>
+#include "log.h"
 #include <unistd.h>
 #include <pthread.h>
 #include <pulse/simple.h>
@@ -18,11 +17,11 @@
 #include <X11/extensions/Xinerama.h>
 #include "ffmpeg.h"
 
-#define ERROR(x) do {                                 \
-                   fprintf(stderr, "ERROR: %s\n", x); \
+#define ERROR(logger, x) do {                         \
+    log_print(logger, LOG_ERROR, "%s\n", x);          \
                    exit(1);                           \
                  } while(0)
-#define ERROR_ERNO ERROR(strerror(errno))
+#define ERROR_ERNO(logger) ERROR(logger, strerror(errno))
 
 #define DEFAULT_PORT 4226
 #define SOCKET_BUFFER_SIZE 2
@@ -37,10 +36,18 @@ int main(int argc, char **argv) {
     print_usage(program);
     return 1;
   }
+  if (opts->help) {
+    print_usage(program);
+    return 0;
+  }
 
+  logger logger;
+  log_init(&logger);
+
+  log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd == -1) {
-    ERROR_ERNO;
+    ERROR_ERNO(&logger);
   }
 
   struct sockaddr_in addr = {
@@ -52,33 +59,32 @@ int main(int argc, char **argv) {
 
   uint8_t stop_command[] = STOP_COMMAND;
 
-  if (opts->help) {
-    print_usage(program);
-    return 0;
-  }
-
   // Brake is highest priority task
   if (opts->brake) {
+    log_print(&logger, LOG_INFO, "Connecting to process.\n");
     if(connect(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
-      ERROR_ERNO;
+      ERROR_ERNO(&logger);
     }
     int bytes_sent = write(socket_fd, stop_command, STOP_COMMAND_SIZE);
     if (bytes_sent < 0) {
-      ERROR_ERNO;
+      ERROR_ERNO(&logger);
     }
     return 0;
   }
 
+  log_print(&logger, LOG_INFO, "Setting socket to reuse address.\n");
   if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-    ERROR_ERNO;
+    ERROR_ERNO(&logger);
   }
 
+  log_print(&logger, LOG_INFO, "Binding address.\n");
   if(bind(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
-    ERROR_ERNO;
+    ERROR_ERNO(&logger);
   }
 
+  log_print(&logger, LOG_INFO, "Listening socket.\n");
   if (listen(socket_fd, 10) < 0) {
-    ERROR_ERNO;
+    ERROR_ERNO(&logger);
   }
 
   bool is_stopped = false;
@@ -97,6 +103,7 @@ int main(int argc, char **argv) {
   pa_simple *simple = 0;
   int error;
 
+  log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
   if ((simple = pa_simple_new(0, "snipx", PA_STREAM_RECORD,
                               0, "record", &sample_spec, 0, 0, &error)) == 0) {
     fprintf(stderr, "Cannot create PulseAudio connection: %s.\n", pa_strerror(error));
@@ -106,27 +113,29 @@ int main(int argc, char **argv) {
 
   // Initialise X11
 
+  log_print(&logger, LOG_INFO, "Opening X11 display.\n");
   Display *display = XOpenDisplay(0);
 
   // Initialise Xinerama
   
   int minor, major;
   if (!XineramaQueryExtension(display, &minor, &major)) {
-    fprintf(stderr, "Xinerama is not supported.\n");
+    log_print(&logger, LOG_ERROR, "Xinerama is not supported.\n");
     close(socket_fd);
     return 1;
   }
   if (!XineramaIsActive(display)) {
-    fprintf(stderr, "Xinerama is not active.\n");
+    log_print(&logger, LOG_ERROR, "Xinerama is not active.\n");
     close(socket_fd);
     return 1;
   }
 
   int num_screens = 0;
+  log_print(&logger, LOG_INFO, "Getting existing screens.\n");
   XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
   Window root = DefaultRootWindow(display);
   if (opts->screen_number > num_screens - 1) {
-    fprintf(stderr, "Invalid screen number.\n");
+    log_print(&logger, LOG_ERROR, "Invalid screen number.\n");
     close(socket_fd);
     return 1;
   }
@@ -134,10 +143,13 @@ int main(int argc, char **argv) {
   short screen_y = screens[opts->screen_number].y_org;
   short screen_width = screens[opts->screen_number].width;
   short screen_height = screens[opts->screen_number].height;
+  log_print(&logger, LOG_INFO, "Screen x: %d, y: %d, width: %d, height: %d.\n", screen_x, screen_y, screen_width, screen_height);
 
   // Initialise ring buffers.
 
+  log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
   circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
+  log_print(&logger, LOG_INFO, "Initialising audio buffer.\n");
   circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
   video_capturing_params video_params = {
@@ -156,18 +168,23 @@ int main(int argc, char **argv) {
     .framerate = opts->fps,
   };
 
+  log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+  log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
 
   int client_fd;
+  log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
     if((client_fd = accept(socket_fd, (struct sockaddr *)&addr, &addrlen)) < 0) {
-      ERROR_ERNO;
+      ERROR_ERNO(&logger);
     }
     if (read(client_fd, socket_buffer, SOCKET_BUFFER_SIZE) < 0) {
-      ERROR_ERNO;
+      ERROR_ERNO(&logger);
     }
+    log_print(&logger, LOG_INFO, "Received message.\n");
     if (memcmp(socket_buffer, stop_command, SOCKET_BUFFER_SIZE) == 0) {
+      log_print(&logger, LOG_INFO, "Stopping recording\n");
       is_stopped = true;
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
@@ -181,23 +198,21 @@ int main(int argc, char **argv) {
       uint8_t *audio;
       int audio_start = atomic_load(&audio_frame_counter) - opts->fps * opts->length;
       if (audio_start < 0) audio_start = 0;
+      log_print(&logger, LOG_INFO, "Flushing sound into output.aac\n");
       for (int i = audio_start; i < atomic_load(&audio_frame_counter); ++i) {
         audio = circular_array_get(&audio_ring_buffer, i);
         ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
       }
       ffmpeg_close(sound);
 
-      time_t t = time(0);
-      struct tm tm = *localtime(&t);
-      
       char filename[128] = {0};
-
-      snprintf(filename, sizeof(filename), "%d-%02d-%02d %02d:%02d:%02d.mp4", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+      snprintf(filename, sizeof(filename), "%s.mp4", log_get_time());
 
       uint32_t *frame;
       ffmpeg *video = ffmpeg_init_video("output.aac", filename, screen_width, screen_height, opts->fps, opts->bitrate);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
+      log_print(&logger, LOG_INFO, "Flushing video into %s\n", filename);
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
         frame = circular_array_get(&video_ring_buffer, i);
         ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
@@ -211,6 +226,8 @@ int main(int argc, char **argv) {
 
   pthread_mutex_destroy(&lock);
   close(socket_fd);
-
+  log_print(&logger, LOG_INFO, "Exiting.\n");
+  log_print(&logger, LOG_INFO, "File is saved as %s\n", logger.filename);
+  log_close(&logger);
   return 0;
 }
