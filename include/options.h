@@ -64,6 +64,8 @@ static flag available_flags[] = {
   {"help",         'h', "Print this message", HELP,                 .priority = 0},
 };
 
+extern value_type value_types[OPTION_TYPE_LENGTH];
+
 /** @brief Prints program usage.
  *  @param[in] program Program name.
  */
@@ -86,14 +88,6 @@ option_type parse_flag(char *flag);
  *  @return #value_type.
  */
 value_type parse_value(char *value);
-
-/** @brief Compares option and value.
- *  @param[in] option option.
- *  @param[in] value value.
- *  @return true if compare, false if not.
- *  @deprecated use {@link #get_value_type()} instead.
- */
-bool option_value_compare(option_type option, value_type value);
 
 /** @brief Getting relative value type.
  *  @param[in] option option.

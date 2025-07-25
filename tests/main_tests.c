@@ -127,17 +127,17 @@ void test_Xvideo() {
 
 void test_option_value_comparation() {
   test test = {.name = "option value comparation"};
-  assert_int(&test, 1, option_value_compare(UNKNOWN, NONE));
-  assert_int(&test, 1, option_value_compare(SCREEN_NUMBER, NUMBER));
-  assert_int(&test, 1, option_value_compare(WINDOW, NONE));
-  assert_int(&test, 1, option_value_compare(FPS, NUMBER));
-  assert_int(&test, 1, option_value_compare(SOUND_MONITOR, STRING));
-  assert_int(&test, 1, option_value_compare(BRAKE, NONE));
-  assert_int(&test, 1, option_value_compare(ADDRESS, STRING));
-  assert_int(&test, 1, option_value_compare(PORT, NUMBER));
-  assert_int(&test, 0, option_value_compare(BRAKE, STRING));
-  assert_int(&test, 0, option_value_compare(SCREEN_NUMBER, STRING));
-  assert_int(&test, 0, option_value_compare(FPS, NONE));
+  assert_int(&test, 1, get_value_type(UNKNOWN) == NONE);
+  assert_int(&test, 1, get_value_type(SCREEN_NUMBER) == NUMBER);
+  assert_int(&test, 1, get_value_type(WINDOW) == NONE);
+  assert_int(&test, 1, get_value_type(FPS) == NUMBER);
+  assert_int(&test, 1, get_value_type(SOUND_MONITOR) == STRING);
+  assert_int(&test, 1, get_value_type(BRAKE) == NONE);
+  assert_int(&test, 1, get_value_type(ADDRESS) == STRING);
+  assert_int(&test, 1, get_value_type(PORT) == NUMBER);
+  assert_int(&test, 0, get_value_type(BRAKE) == STRING);
+  assert_int(&test, 0, get_value_type(SCREEN_NUMBER) == STRING);
+  assert_int(&test, 0, get_value_type(FPS) == NONE);
   assert_done(&test);
 }
 
