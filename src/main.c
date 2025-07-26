@@ -19,6 +19,7 @@
 #include "ffmpeg.h"
 #include "directory_manager.h"
 #include "defaults.h"
+#include "sender.h"
 
 #define ERROR(logger, x) do {                         \
     log_print(logger, LOG_ERROR, "%s\n", x);          \
@@ -235,6 +236,12 @@ int main(int argc, char **argv) {
         ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
       }
       ffmpeg_close(video);
+
+      char port[8];
+      snprintf(port, 8, "%d", opts->port);
+      log_print(&logger, LOG_INFO, "Trying to send video.\n");
+      if (send_video(logger, opts->address, port, video_filename) == -1)
+        log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);

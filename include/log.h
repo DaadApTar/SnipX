@@ -31,6 +31,7 @@ int log_init(logger *logger);
 
 /** @brief Initialises logger.
  *  @param[in] logger pointer to instance.
+ *  @param[in] level #log_level.
  *  @param[in] format format string.
  *  @param[in] ... Optional arguments for format.
  *  @return 0 if succeed, -1 on error.
