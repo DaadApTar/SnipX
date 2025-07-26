@@ -204,6 +204,7 @@ int main(int argc, char **argv) {
       
       // ffmpeg
 
+      // Sound file
       char sound_filename[256];
       snprintf(sound_filename, 256, "%s/output.aac", temp_directory);
 
@@ -219,15 +220,16 @@ int main(int argc, char **argv) {
       }
       ffmpeg_close(sound);
 
-      char filename[256] = {0};
-      if (opts->locally) snprintf(filename, sizeof(filename), "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
-      else snprintf(filename, sizeof(filename), "%s/%s.mp4", temp_directory, log_get_time());
+      // Video file
+      char video_filename[256] = {0};
+      if (opts->locally) snprintf(video_filename, sizeof(video_filename), "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+      else snprintf(video_filename, sizeof(video_filename), "%s/%s.mp4", temp_directory, log_get_time());
 
       uint32_t *frame;
-      ffmpeg *video = ffmpeg_init_video(sound_filename, filename, screen_width, screen_height, opts->fps, opts->bitrate);
+      ffmpeg *video = ffmpeg_init_video(sound_filename, video_filename, screen_width, screen_height, opts->fps, opts->bitrate);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
-      log_print(&logger, LOG_INFO, "Flushing video into %s\n", filename);
+      log_print(&logger, LOG_INFO, "Flushing video into %s\n", video_filename);
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
         frame = circular_array_get(&video_ring_buffer, i);
         ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
