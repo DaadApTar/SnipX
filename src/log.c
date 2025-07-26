@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "directory_manager.h"
+#include "defaults.h"
 
 #define HOME getenv("HOME")
 
@@ -19,12 +20,12 @@ char *log_get_time() {
 
 int log_init(logger *logger) {
   // Creating log directory.
-  int ret = dir_create_if_not_exists(dir_default_or_env("$HOME/.local/share/snipx/", "SNIPX_LOG_DIR"));
+  char *path = dir_default_or_env(DEFAULT_SNIPX_LOG_FOLDER, ENV_SNIPX_LOG_DIR);
+  int ret = dir_create_if_not_exists(path);
   if (ret == -1) {
     return -1;
   }
   char *filename = (char *)malloc(sizeof(char) * 256);
-  char *path = dir_default_or_env("$HOME/.local/share/snipx/", "SNIPX_LOG_DIR");
   sprintf(filename, "%s/%s.log", path, log_get_time());
   logger->file = fopen(filename, "w");
   logger->filename = filename;

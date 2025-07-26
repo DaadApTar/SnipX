@@ -1,3 +1,4 @@
+#include "defaults.h"
 #include "options.h"
 #include "recorder.h"
 #include <bits/pthreadtypes.h>
@@ -17,6 +18,7 @@
 #include <X11/extensions/Xinerama.h>
 #include "ffmpeg.h"
 #include "directory_manager.h"
+#include "defaults.h"
 
 #define ERROR(logger, x) do {                         \
     log_print(logger, LOG_ERROR, "%s\n", x);          \
@@ -42,6 +44,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_FOLDER, ENV_SNIPX_DIR));
   logger logger;
   log_init(&logger);
 
@@ -177,8 +180,6 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
 
-  dir_create_if_not_exists(dir_default_or_env("$HOME/.local/share/snipx/", "SNIPX_DIR"));
-
   int client_fd;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
@@ -198,7 +199,7 @@ int main(int argc, char **argv) {
       pa_simple_free(simple);
 
       // Create tmp directory.
-      char *temp_directory = dir_default_or_env("$HOME/.local/share/snipx/tmp/", "SNIPX_TMP_DIR");
+      char *temp_directory = dir_default_or_env(DEFAULT_SNIPX_TMP_FOLDER, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
       
       // ffmpeg
