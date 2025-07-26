@@ -16,6 +16,7 @@
 #include <X11/X.h>
 #include <X11/extensions/Xinerama.h>
 #include "ffmpeg.h"
+#include "directory_manager.h"
 
 #define ERROR(logger, x) do {                         \
     log_print(logger, LOG_ERROR, "%s\n", x);          \
@@ -176,6 +177,8 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
 
+  dir_create_if_not_exists(dir_default_or_env("$HOME/.local/share/snipx/", "SNIPX_DIR"));
+
   int client_fd;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
@@ -194,9 +197,16 @@ int main(int argc, char **argv) {
       pthread_join(audio_thread, 0);
       pa_simple_free(simple);
 
+      // Create tmp directory.
+      char *temp_directory = dir_default_or_env("$HOME/.local/share/snipx/tmp/", "SNIPX_TMP_DIR");
+      dir_create_if_not_exists(temp_directory);
+      
       // ffmpeg
 
-      ffmpeg *sound = ffmpeg_init_sound("output.aac");
+      char sound_filename[256];
+      snprintf(sound_filename, 256, "%s/output.aac", temp_directory);
+
+      ffmpeg *sound = ffmpeg_init_sound(sound_filename);
 
       uint8_t *audio;
       int audio_start = atomic_load(&audio_frame_counter) - opts->fps * opts->length;
@@ -208,11 +218,11 @@ int main(int argc, char **argv) {
       }
       ffmpeg_close(sound);
 
-      char filename[128] = {0};
-      snprintf(filename, sizeof(filename), "%s.mp4", log_get_time());
+      char filename[256] = {0};
+      snprintf(filename, sizeof(filename), "%s/%s.mp4", temp_directory, log_get_time());
 
       uint32_t *frame;
-      ffmpeg *video = ffmpeg_init_video("output.aac", filename, screen_width, screen_height, opts->fps, opts->bitrate);
+      ffmpeg *video = ffmpeg_init_video(sound_filename, filename, screen_width, screen_height, opts->fps, opts->bitrate);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
       log_print(&logger, LOG_INFO, "Flushing video into %s\n", filename);
@@ -221,7 +231,6 @@ int main(int argc, char **argv) {
         ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
       }
       ffmpeg_close(video);
-      
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);
