@@ -19,6 +19,7 @@
 
 #include "circular_array.h"
 #include "options.h"
+#include "directory_manager.h"
 
 void test_circular_array() {
   test test = {.name = "circular array"};
@@ -207,6 +208,13 @@ void test_parse_flags() {
   assert_done(&test);
 }
 
+void test_parse_env_string() {
+  test test = {.name = "Environment expanding test. Make sure to set environment variables on start."};
+  assert_int(&test, 0, strcmp("Hello world", dir_expand_env("$ENV_TEST1 world")));
+  assert_int(&test, 0, strcmp("123/test", dir_expand_env("$ENV_TEST2/test")));
+  assert_done(&test);
+}
+
 int main() {
   test_circular_array();
   //test_Xscreenshot();
@@ -215,5 +223,6 @@ int main() {
   test_parse_flag();
   test_parse_value();
   test_parse_flags();
+  test_parse_env_string();
   return 0;
 }

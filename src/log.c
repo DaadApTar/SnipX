@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
+#include "directory_manager.h"
 
 #define HOME getenv("HOME")
 #define SNIPX_LOG_DIR getenv("SNIPX_LOG_DIR")
@@ -17,33 +18,14 @@ char *log_get_time() {
   return return_time;
 }
 
-int create_log_directory() {
-  struct stat st = {0};
-  char *path = log_get_directory();
-  if (stat(path, &st) == -1) {
-    return mkdir(path, 0777);
-  } 
-  free(path);
-  return 0;
-}
-
-char *log_get_directory() {
-  char *path = (char *)malloc(sizeof(char) * 256);
-  char *snipx_log_directory = SNIPX_LOG_DIR;
-  if (snipx_log_directory == 0)
-    sprintf(path, "%s/.local/share/snipx/", HOME);
-  else 
-    sprintf(path, "%s/", snipx_log_directory);
-  return path;
-}
-
 int log_init(logger *logger) {
-  int ret = create_log_directory();
+  // Creating log directory.
+  int ret = dir_create_if_not_exists(dir_default_or_env("$HOME/.local/share/snipx/", SNIPX_LOG_DIR));
   if (ret == -1) {
     return -1;
   }
   char *filename = (char *)malloc(sizeof(char) * 256);
-  char *path = log_get_directory();
+  char *path = dir_default_or_env("$HOME/.local/share/snipx/", SNIPX_LOG_DIR);
   sprintf(filename, "%s%s.log", path, log_get_time());
   logger->file = fopen(filename, "w");
   logger->filename = filename;

@@ -53,7 +53,7 @@ $(BUILD_DIR):
 test: $(TEST_BIN)
 	@echo "Running tests..."
 	@echo $(TEST_SRC)
-	./$(TEST_BIN)
+	ENV_TEST1=Hello ENV_TEST2=123 ./$(TEST_BIN)
 
 # Link test binary
 $(TEST_BIN): $(TEST_OBJ)

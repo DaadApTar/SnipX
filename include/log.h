@@ -23,16 +23,6 @@ typedef enum {
  */
 char *log_get_time();
 
-/** @brief Provides a log directory.
- *  @return string.
- */
-char *log_get_directory();
-
-/** @brief Creates log directory.
- *  @return 0 if succeed, -1 on error.
- */
-int create_log_directory();
-
 /** @brief Initialises logger.
  *  @param[out] logger pointer to instance.
  *  @return 0 if succeed, -1 on error.
