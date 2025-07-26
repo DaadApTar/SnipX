@@ -23,8 +23,8 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/`, but it can be chang
 ## TODO
 - [x] Add --help (-h) flag
 - [x] Add --length (-l) flag
-- [ ] Add saving files locally
+- [x] Add saving files locally
 - [ ] Connect sender.
-- [ ] Add saving files locall until the server is available
+- [ ] Add saving files locally until the server is available
 - [ ] Add capturing the screen via shared memory
 - [ ] Add NVENC support
