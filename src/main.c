@@ -220,7 +220,8 @@ int main(int argc, char **argv) {
       ffmpeg_close(sound);
 
       char filename[256] = {0};
-      snprintf(filename, sizeof(filename), "%s/%s.mp4", temp_directory, log_get_time());
+      if (opts->locally) snprintf(filename, sizeof(filename), "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+      else snprintf(filename, sizeof(filename), "%s/%s.mp4", temp_directory, log_get_time());
 
       uint32_t *frame;
       ffmpeg *video = ffmpeg_init_video(sound_filename, filename, screen_width, screen_height, opts->fps, opts->bitrate);
