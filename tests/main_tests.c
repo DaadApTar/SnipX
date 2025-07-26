@@ -138,6 +138,7 @@ void test_option_value_comparation() {
   assert_int(&test, 0, get_value_type(BRAKE) == STRING);
   assert_int(&test, 0, get_value_type(SCREEN_NUMBER) == STRING);
   assert_int(&test, 0, get_value_type(FPS) == NONE);
+  assert_int(&test, 1, get_value_type(LOCALLY) == NONE);
   assert_done(&test);
 }
 
@@ -154,6 +155,7 @@ void test_parse_flag() {
   assert_int(&test, BRAKE, parse_flag("--brake"));
   assert_int(&test, BRAKE, parse_flag("-b"));
   assert_int(&test, UNKNOWN, parse_flag("--dfg"));
+  assert_int(&test, LOCALLY, parse_flag("--local"));
   assert_done(&test);
 }
 
@@ -171,7 +173,7 @@ void test_parse_value() {
 
 void test_parse_flags() {
   test test = {.name = "bunch of flags parsing"};
-  char **args = (char **)malloc(sizeof(char **) * 15);
+  char **args = (char **)malloc(sizeof(char **) * 16);
   args[0] = "--screen";
   args[1] = "0";
   args[2] = "-f";
@@ -187,7 +189,8 @@ void test_parse_flags() {
   args[12] = "4227";
   args[13] = "--address";
   args[14] = "0.0.0.0";
-  options *opts = parse_flags(args, 15);
+  args[15] = "--local";
+  options *opts = parse_flags(args, 16);
   if (opts == 0) {
     fprintf(stderr, RED"Failed to parse opts.\n");
     return;
@@ -200,6 +203,7 @@ void test_parse_flags() {
   assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
   assert_int(&test, 4227, opts->port);
   assert_int(&test, 0, strcmp("0.0.0.0", opts->address));
+  assert_int(&test, 1, opts->locally);
   assert_done(&test);
 }
 

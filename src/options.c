@@ -66,6 +66,9 @@ options *parse_flags(char **args, size_t size) {
     case HELP:
       opts->help = true;
       break;
+    case LOCALLY:
+      opts->locally = true;
+      break;
     case WINDOW:
     default:
       free(opts);
@@ -88,6 +91,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [BITRATE] = NUMBER,
   [ADDRESS] = STRING,
   [PORT] = NUMBER,
+  [LOCALLY] = NONE,
   [HELP] = NONE,
 };
 

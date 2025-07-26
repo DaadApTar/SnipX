@@ -18,6 +18,7 @@ typedef enum {
   BITRATE,
   ADDRESS,
   PORT,
+  LOCALLY,
   HELP,
 
   OPTION_TYPE_LENGTH
@@ -48,6 +49,7 @@ typedef struct {
   int length;
   char *address;
   int port;
+  bool locally;
   long bitrate;
 } options;
 
@@ -61,6 +63,7 @@ static flag available_flags[] = {
   {"brake",        'b', "Brake the recording.", BRAKE,              .priority = 2},
   {"address",      'a', "Server IP-address", ADDRESS,               .priority = 0},
   {"port",         'p', "Server port", PORT,                        .priority = 0},
+  {"local",          0, "Save clip locally.", LOCALLY,                        .priority = 0},
   {"help",         'h', "Print this message", HELP,                 .priority = 0},
 };
 
