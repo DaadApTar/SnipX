@@ -249,9 +249,14 @@ int main(int argc, char **argv) {
       }
       ffmpeg_close(video);
 
-      log_print(&logger, LOG_INFO, "Trying to send video.\n");
-      if (send_video(logger, opts->address, port, video_filename) == -1)
-        log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
+      if (!opts->locally) {
+        log_print(&logger, LOG_INFO, "Trying to send video.\n");
+        if (send_video(logger, opts->address, port, video_filename) == -1)
+          log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
+      }
+      else {
+        log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filename);
+      }
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);
