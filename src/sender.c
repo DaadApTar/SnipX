@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 
 int send_video(logger logger, char *address, char *port, char *filepath) {
   int sender_pipe[2];
@@ -70,6 +71,7 @@ int send_video(logger logger, char *address, char *port, char *filepath) {
       if (exit_code == 0) {
         if (delete_video(filepath) == -1) return -1;
       }
+      else return -1;
     }
     else return -1;
   }
@@ -79,4 +81,23 @@ int send_video(logger logger, char *address, char *port, char *filepath) {
 
 int delete_video(char *filepath) {
   return remove(filepath);
+}
+
+int send_temp_files(logger logger, char *address, char *port, char* path) {
+  DIR *d;
+  struct dirent *file;
+  d = opendir(path);
+  if (d == 0) return -1;
+  while ((file = readdir(d)) != 0) {
+    if (file->d_type == DT_REG && strstr(file->d_name, ".mp4") != 0) {
+      char filepath[256];
+      snprintf(filepath, 256, "%s%s", path, file->d_name);
+      if (send_video(logger, address, port, filepath) == -1) break;
+    }
+  }
+}
+
+void *thread_send_temp_files(void *args) {
+  sender_params *params = (sender_params *)args;
+  send_temp_files(params->logger, params->address, params->port, params->path);
 }
