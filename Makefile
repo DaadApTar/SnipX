@@ -1,6 +1,6 @@
 # Compiler and flags
 CC ?= gcc
-CFLAGS := -Wall -Wextra -Iinclude -ggdb
+CFLAGS = -Wall -Wextra -Iinclude -ggdb
 LDFLAGS := -lX11 -lXinerama -lpulse-simple -lpulse -lpthread
 
 SENDER ?= true
@@ -23,9 +23,19 @@ TEST_SRC := $(wildcard $(TEST_DIR)/*.c)
 TEST_OBJ += $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%.test.o, $(TEST_SRC))
 TEST_BIN := $(BUILD_DIR)/test_runner
 
+PREFIX ?= $(HOME)/.local
+INSTALL_DIR := $(PREFIX)/bin/
+
+TARGET_NAME = snipx
+SENDER_TARGET_NAME = snipx-sender
+
 # Final executable
-TARGET := $(BUILD_DIR)/snipx
-SENDER_TARGET := $(BUILD_DIR)/snipx-sender
+TARGET := $(BUILD_DIR)/$(TARGET_NAME)
+ifeq ($(SENDER), true)
+SENDER_TARGET := $(BUILD_DIR)/$(SENDER_TARGET_NAME)
+else
+CFLAGS += -DDISABLE_SENDER
+endif
 
 .PHONY: all clean test
 
@@ -62,6 +72,22 @@ $(TEST_BIN): $(TEST_OBJ)
 # Compile test files
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# ===== Install =====
+ifeq ($(SENDER), true)
+install: $(TARGET) $(SENDER_TARGET)
+else
+install: $(TARGET)
+endif
+	mkdir -p $(INSTALL_DIR)
+	cp $(TARGET) $(INSTALL_DIR)
+ifeq ($(SENDER), true)
+	cp $(SENDER_TARGET) $(INSTALL_DIR)
+endif
+	@echo "Installed to $(INSTALL_DIR)"
+
+uninstall:
+	rm $(INSTALL_DIR)/$(TARGET_NAME) $(INSTALL_DIR)/$(SENDER_TARGET_NAME)
 
 # ===== Clean =====
 
