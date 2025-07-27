@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 int send_video(logger logger, char *address, char *port, char *filepath) {
   int sender_pipe[2];
@@ -43,6 +45,7 @@ int send_video(logger logger, char *address, char *port, char *filepath) {
     log_print(&logger, LOG_INFO, "[CHILD %d] Sending file.\n", getpid());
 
     execvp("snipx-sender", options);
+    log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
     perror("execvp failed");
     exit(127);
   }
@@ -65,7 +68,7 @@ int send_video(logger logger, char *address, char *port, char *filepath) {
       log_print(&logger, exit_code == 1 ? LOG_WARNING : exit_code == 0 ? LOG_INFO : LOG_ERROR, "Sender exited with code %d\n", exit_code);
 
       if (exit_code == 0) {
-        delete_video(filepath);
+        if (delete_video(filepath) == -1) return -1;
       }
     }
     else return -1;
@@ -75,5 +78,5 @@ int send_video(logger logger, char *address, char *port, char *filepath) {
 }
 
 int delete_video(char *filepath) {
-  return 0;
+  return remove(filepath);
 }
