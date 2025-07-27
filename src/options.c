@@ -27,6 +27,11 @@ options *parse_flags(char **args, size_t size) {
   opts->sound_monitor = 0;
   opts->bitrate       = 2500000;
   opts->length        = 10;
+#ifndef DISABLE_SENDER
+  opts->locally       = false;
+#else
+  opts->locally       = true;
+#endif
   // Fill the opts.
   for (int i = 0; i < (int)size; ++i) {
     option_type option = parse_flag(args[i]); 

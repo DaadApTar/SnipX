@@ -98,7 +98,10 @@ int main(int argc, char **argv) {
   bool is_stopped = false;
   uint8_t socket_buffer[SOCKET_BUFFER_SIZE] = {0};
 
-  pthread_t video_thread, audio_thread, sender_thread;
+  pthread_t video_thread, audio_thread;
+#ifndef DISABLE_SENDER
+  pthread_t sender_thread;
+#endif
   pthread_mutex_init(&lock, 0);
   atomic_store(&running_flag, 1);
 
@@ -170,6 +173,7 @@ int main(int argc, char **argv) {
     .framerate = opts->fps
   };
 
+#ifndef DISABLE_SENDER
   char port[8];
   snprintf(port, 8, "%d", opts->port);
   sender_params temp_sender_params = {
@@ -179,6 +183,7 @@ int main(int argc, char **argv) {
     .port = (char *)malloc(sizeof(char) * 8)
   };
   snprintf(temp_sender_params.port, 8, "%d", opts->port);
+#endif
 
   audio_capturing_params audio_params = {
     .monitor = opts->sound_monitor,
@@ -186,8 +191,10 @@ int main(int argc, char **argv) {
     .framerate = opts->fps,
   };
 
+#ifndef DISABLE_SENDER
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
   pthread_create(&sender_thread, 0, thread_send_temp_files, (void *)&temp_sender_params);
+#endif
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
@@ -249,6 +256,7 @@ int main(int argc, char **argv) {
       }
       ffmpeg_close(video);
 
+#ifndef DISABLE_SENDER
       if (!opts->locally) {
         log_print(&logger, LOG_INFO, "Trying to send video.\n");
         if (send_video(logger, opts->address, port, video_filename) == -1)
@@ -257,12 +265,17 @@ int main(int argc, char **argv) {
       else {
         log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filename);
       }
+#else
+      log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filename);
+#endif
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);
   }
 
+#ifndef DISABLE_SENDER
   pthread_join(sender_thread, 0);
+#endif
   pthread_mutex_destroy(&lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");

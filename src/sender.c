@@ -1,3 +1,4 @@
+#ifndef DISABLE_SENDER
 #include "sender.h"
 #include "log.h"
 #include <sys/wait.h>
@@ -101,3 +102,4 @@ void *thread_send_temp_files(void *args) {
   sender_params *params = (sender_params *)args;
   send_temp_files(params->logger, params->address, params->port, params->path);
 }
+#endif

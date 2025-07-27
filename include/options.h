@@ -61,9 +61,11 @@ static flag available_flags[] = {
   {"length",       'l', "Length of the video in seconds.", LENGTH,  .priority = 0},
   {"bitrate",        0, "Video bitrate.", BITRATE,                  .priority = 0},
   {"brake",        'b', "Brake the recording.", BRAKE,              .priority = 2},
+#ifndef DISABLE_SENDER
   {"address",      'a', "Server IP-address", ADDRESS,               .priority = 0},
   {"port",         'p', "Server port", PORT,                        .priority = 0},
   {"local",          0, "Save clip locally.", LOCALLY,                        .priority = 0},
+#endif
   {"help",         'h', "Print this message", HELP,                 .priority = 0},
 };
 
