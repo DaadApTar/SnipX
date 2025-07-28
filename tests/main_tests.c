@@ -151,12 +151,16 @@ void test_parse_flag() {
   assert_int(&test, FPS, parse_flag("-f"));
   assert_int(&test, SOUND_MONITOR, parse_flag("--monitor"));
   assert_int(&test, SOUND_MONITOR, parse_flag("-m"));
+#ifndef DISABLE_SENDER
   assert_int(&test, ADDRESS, parse_flag("--address"));
   assert_int(&test, PORT, parse_flag("-p"));
+#endif
   assert_int(&test, BRAKE, parse_flag("--brake"));
   assert_int(&test, BRAKE, parse_flag("-b"));
   assert_int(&test, UNKNOWN, parse_flag("--dfg"));
+#ifndef DISABLE_SENDER
   assert_int(&test, LOCALLY, parse_flag("--local"));
+#endif
   assert_done(&test);
 }
 
@@ -186,11 +190,13 @@ void test_parse_flags() {
     "20",
     "--bitrate",
     "2500000",
+#ifndef DISABLE_SENDER
     "-p",
     "4227",
     "--address",
     "0.0.0.0",
     "--local",
+#endif
   };
   options *opts = parse_flags(args, sizeof(args) / sizeof(args[0]));
   if (opts == 0) {
@@ -203,9 +209,11 @@ void test_parse_flags() {
   assert_int(&test, 2500000, opts->bitrate);
   assert_int(&test, 20, opts->length);
   assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
+#ifndef DISABLE_SENDER
   assert_int(&test, 4227, opts->port);
   assert_int(&test, 0, strcmp("0.0.0.0", opts->address));
   assert_int(&test, 1, opts->locally);
+#endif
   assert_done(&test);
 }
 
