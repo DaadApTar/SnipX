@@ -20,7 +20,9 @@ char *log_get_time() {
 
 int log_init(logger *logger) {
   // Creating log directory.
-  char *path = dir_default_or_env(DEFAULT_SNIPX_LOG_DIR, ENV_SNIPX_LOG_DIR);
+  char default_snipx_log_dir[256];
+  snprintf(default_snipx_log_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_LOG_DIR);
+  char *path = dir_default_or_env(default_snipx_log_dir, ENV_SNIPX_LOG_DIR);
   int ret = dir_create_if_not_exists(path);
   if (ret == -1) {
     return -1;

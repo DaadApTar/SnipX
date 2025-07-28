@@ -46,6 +46,9 @@ int main(int argc, char **argv) {
   }
 
   dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR));
+  char default_snipx_tmp_dir[256];
+  snprintf(default_snipx_tmp_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_TMP_DIR);
+
   logger logger;
   log_init(&logger);
 
@@ -179,7 +182,7 @@ int main(int argc, char **argv) {
   sender_params temp_sender_params = {
     .logger = logger,
     .address = opts->address,
-    .path = dir_default_or_env(DEFAULT_SNIPX_TMP_DIR, ENV_SNIPX_TMP_DIR),
+    .path = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR),
     .port = (char *)malloc(sizeof(char) * 8)
   };
   snprintf(temp_sender_params.port, 8, "%d", opts->port);
@@ -219,7 +222,7 @@ int main(int argc, char **argv) {
       pa_simple_free(simple);
 
       // Create tmp directory.
-      char *temp_directory = dir_default_or_env(DEFAULT_SNIPX_TMP_DIR, ENV_SNIPX_TMP_DIR);
+      char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
       
       // ffmpeg
