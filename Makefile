@@ -26,8 +26,10 @@ TEST_BIN := $(BUILD_DIR)/test_runner
 PREFIX ?= $(HOME)/.local
 INSTALL_DIR := $(PREFIX)/bin/
 
-TARGET_NAME = snipx
-SENDER_TARGET_NAME = snipx-sender
+BUILD_CONFIG := .build-config
+
+TARGET_NAME := snipx
+SENDER_TARGET_NAME := snipx-sender
 
 # Final executable
 TARGET := $(BUILD_DIR)/$(TARGET_NAME)
@@ -44,6 +46,7 @@ all: $(TARGET) $(SENDER_TARGET)
 # Link final app
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "SENDER=$(SENDER)" > $(BUILD_CONFIG)
 
 $(SENDER_TARGET):
 ifeq ($(SENDER), true)
@@ -73,6 +76,8 @@ $(TEST_BIN): $(TEST_OBJ)
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+-include $(BUILD_CONFIG)
+
 # ===== Install =====
 ifeq ($(SENDER), true)
 install: $(TARGET) $(SENDER_TARGET)
@@ -92,4 +97,4 @@ uninstall:
 # ===== Clean =====
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(BUILD_CONFIG)
