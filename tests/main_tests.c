@@ -174,24 +174,25 @@ void test_parse_value() {
 
 void test_parse_flags() {
   test test = {.name = "bunch of flags parsing"};
-  char **args = (char **)malloc(sizeof(char **) * 16);
-  args[0] = "--screen";
-  args[1] = "0";
-  args[2] = "-f";
-  args[3] = "60";
-  args[4] = "--monitor";
-  args[5] = "some_monitor";
-  args[6] = "-b";
-  args[7] = "-l";
-  args[8] = "20";
-  args[9] = "--bitrate";
-  args[10] = "2500000";
-  args[11] = "-p";
-  args[12] = "4227";
-  args[13] = "--address";
-  args[14] = "0.0.0.0";
-  args[15] = "--local";
-  options *opts = parse_flags(args, 16);
+  char *args[] = {
+    "--screen",
+    "0",
+    "-f",
+    "60",
+    "--monitor",
+    "some_monitor",
+    "-b",
+    "-l",
+    "20",
+    "--bitrate",
+    "2500000",
+    "-p",
+    "4227",
+    "--address",
+    "0.0.0.0",
+    "--local",
+  };
+  options *opts = parse_flags(args, sizeof(args) / sizeof(args[0]));
   if (opts == 0) {
     fprintf(stderr, RED"Failed to parse opts.\n");
     return;
