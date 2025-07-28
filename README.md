@@ -15,7 +15,7 @@ $ SENDER=false make
 ```
 ## Installation
 ```console
-# make install
+$ make install
 ```
 ## Usage
 Starting recording.
