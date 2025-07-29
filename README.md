@@ -27,7 +27,7 @@ Saving replay.
 $ snipx -b
 ```
 ## Logging
-By default, snipx saves logs in `$HOME/.local/share/snipx/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
+By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
 ## Env variables
 - `SNIPX_DIR` - snipx temp and log directory.
 - `SNIPX_TMP_DIR` - snipx temp directory.
