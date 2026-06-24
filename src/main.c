@@ -15,7 +15,11 @@
 #include <pulse/simple.h>
 #include <pulse/pulseaudio.h>
 #include <X11/X.h>
+#include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
+#include <X11/extensions/XShm.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include "ffmpeg.h"
 #include "directory_manager.h"
 #include "defaults.h"
@@ -132,8 +136,8 @@ int main(int argc, char **argv) {
 
   // Initialise Xinerama
   
-  int minor, major;
-  if (!XineramaQueryExtension(display, &minor, &major)) {
+  int xinerama_minor, xinerama_major;
+  if (!XineramaQueryExtension(display, &xinerama_minor, &xinerama_major)) {
     log_print(&logger, LOG_ERROR, "Xinerama is not supported.\n");
     close(socket_fd);
     return 1;
@@ -144,6 +148,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  log_print(&logger, LOG_INFO, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
+
+
   int num_screens = 0;
   log_print(&logger, LOG_INFO, "Getting existing screens.\n");
   XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
@@ -153,11 +160,55 @@ int main(int argc, char **argv) {
     close(socket_fd);
     return 1;
   }
-  short screen_x = screens[opts->screen_number].x_org;
-  short screen_y = screens[opts->screen_number].y_org;
-  short screen_width = screens[opts->screen_number].width;
-  short screen_height = screens[opts->screen_number].height;
+  
+  XineramaScreenInfo screen_info = screens[opts->screen_number];
+  short screen_x = screen_info.x_org;
+  short screen_y = screen_info.y_org;
+  short screen_width = screen_info.width;
+  short screen_height = screen_info.height;
   log_print(&logger, LOG_INFO, "Screen x: %d, y: %d, width: %d, height: %d.\n", screen_x, screen_y, screen_width, screen_height);
+
+  // Initialise Xshm
+
+  int shm_minor, shm_major;
+  Bool pixmaps;
+  if (!XShmQueryVersion(display, &shm_minor, &shm_major, &pixmaps)) {
+    log_print(&logger, LOG_ERROR, "Xshm is not supported.\n");
+    close(socket_fd);
+    return 1;
+  }
+
+  log_print(&logger, LOG_INFO, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
+
+  int depth = DefaultDepth(display, screen_info.screen_number);
+  Visual *visual = DefaultVisual(display, screen_info.screen_number);
+  XShmSegmentInfo shminfo;
+  XImage *shared_image = XShmCreateImage(display, visual, depth, ZPixmap, /*char *data */ 0, &shminfo, screen_width, screen_height);
+
+  if (!shared_image) {
+    log_print(&logger, LOG_ERROR, "Cannot create shared image.\n");
+    close(socket_fd);
+    return 1;
+  }
+
+  shminfo.shmid = shmget(IPC_PRIVATE, shared_image->bytes_per_line * shared_image->height, IPC_CREAT|0777);
+
+  if (shminfo.shmid < 0) {
+    log_print(&logger, LOG_ERROR, "Cannot get shmid: %s.\n", strerror(errno));
+    close(socket_fd);
+    return 1;
+  }
+
+  shared_image->data = (char *)shmat(shminfo.shmid, 0, 0);
+  shminfo.shmaddr = shared_image->data;
+  shminfo.readOnly = False;
+
+  if (!XShmAttach(display, &shminfo)) {
+    log_print(&logger, LOG_ERROR, "Cannot attach shared memory segment.\n");
+    close(socket_fd);
+    return 1;
+  }
+  XSync(display, False);
 
   // Initialise ring buffers.
 
@@ -169,11 +220,11 @@ int main(int argc, char **argv) {
   video_capturing_params video_params = {
     .display = display,
     .window = root,
+    .shared_image = shared_image,
     .screen_x = screen_x,
     .screen_y = screen_y,
-    .screen_width = screen_width,
-    .screen_height = screen_height,
-    .framerate = opts->fps
+    .framerate = opts->fps,
+    .logger = &logger,
   };
 
 #ifndef DISABLE_SENDER
@@ -192,6 +243,7 @@ int main(int argc, char **argv) {
     .monitor = opts->sound_monitor,
     .simple = simple,
     .framerate = opts->fps,
+    .logger = &logger,
   };
 
 #ifndef DISABLE_SENDER
@@ -284,5 +336,11 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Exiting.\n");
   log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
   log_close(&logger);
+
+  // Closing
+  XShmDetach(display, &shminfo);
+  XDestroyImage(shared_image);
+  shmdt(shminfo.shmaddr);
+  shmctl(shminfo.shmid, IPC_RMID, 0);
   return 0;
 }

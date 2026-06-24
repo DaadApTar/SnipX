@@ -5,16 +5,16 @@
 #include <stdlib.h>
 
 void print_usage(char *program) {
-  fprintf(stderr, "%s [options]\n\n", program);
-  fprintf(stderr, "PARAMS:\n");
+  printf("%s [options]\n\n", program);
+  printf("PARAMS:\n");
   for (size_t i = 0; i < (int)sizeof(available_flags) / (int)sizeof(available_flags[0]); ++i) {
     flag available_flag = available_flags[i];
-    if (available_flag.short_flag != 0) fprintf(stderr, "\t-%c", available_flag.short_flag);
+    if (available_flag.short_flag != 0) printf("\t-%c", available_flag.short_flag);
     else printf("\t");
-    fprintf(stderr, "\t--%s\t\t%s\n", available_flag.long_flag,
+    printf("\t--%s\t\t%s\n", available_flag.long_flag,
                                     available_flag.description);
   }
-  fprintf(stderr, "\n");
+  printf("\n");
 }
 
 options *parse_flags(char **args, size_t size) {

@@ -8,6 +8,8 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/XShm.h>
+#include "log.h"
 
 pthread_mutex_t lock;
 circular_array video_ring_buffer;
@@ -22,14 +24,13 @@ void *thread_video_capturing(void *arg) {
   while (atomic_load(&running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    XImage *image = XGetImage(params->display, params->window, params->screen_x, params->screen_y, params->screen_width, params->screen_height, AllPlanes, ZPixmap);
-    if (!image) {
+    Status ok = XShmGetImage(params->display, params->window, params->shared_image, params->screen_x, params->screen_y, AllPlanes);
+    if (!ok) {
       pthread_mutex_lock(&lock);
-      fprintf(stderr, "Cannot get image.\n");
+      log_print(params->logger, LOG_ERROR, "Cannot get image.\n");
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(&video_ring_buffer, image->data, i);
-    XDestroyImage(image);
+    circular_array_push(&video_ring_buffer, params->shared_image->data, i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -46,7 +47,7 @@ void *thread_video_capturing(void *arg) {
   if (!atomic_load(&running_flag)) {
     atomic_store(&video_frame_counter, i);
     pthread_mutex_lock(&lock);
-    printf("Video thread has been closed.\n");
+    log_print(params->logger, LOG_INFO, "Video thread has been closed.\n");
     pthread_mutex_unlock(&lock);
   }
   return 0;
@@ -62,7 +63,7 @@ void *thread_audio_capturing(void *arg) {
     uint8_t audio_buf[SNIPX_PA_AUDIO_BYTES_PER_FRAME(params->framerate)];
     if (pa_simple_read(params->simple, audio_buf, sizeof(audio_buf), &error) < 0) {
       pthread_mutex_lock(&lock);
-      fprintf(stderr, "Cannot read from PulseAudio: %s.\n", pa_strerror(error));
+      log_print(params->logger, LOG_ERROR, "Cannot read from PulseAudio: %s.\n", pa_strerror(error));
       pthread_mutex_unlock(&lock);
     }
     circular_array_push(&audio_ring_buffer, audio_buf, i);
@@ -82,7 +83,7 @@ void *thread_audio_capturing(void *arg) {
   if (!atomic_load(&running_flag)) {
     atomic_store(&audio_frame_counter, i);
     pthread_mutex_lock(&lock);
-    printf("Audio thread has been closed.\n");
+    log_print(params->logger, LOG_INFO, "Audio thread has been closed.\n");
     pthread_mutex_unlock(&lock);
   }
   return 0;

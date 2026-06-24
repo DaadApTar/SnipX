@@ -6,6 +6,7 @@
 #include <bits/pthreadtypes.h>
 #include <pulse/simple.h>
 #include <stdatomic.h>
+#include "log.h"
 
 #include "circular_array.h"
 
@@ -19,17 +20,18 @@
 typedef struct {
   Display *display;
   Window window;
+  XImage *shared_image;
   int screen_x;
   int screen_y;
-  int screen_width;
-  int screen_height;
   int framerate;
+  logger *logger;
 } video_capturing_params;
 
 typedef struct {
   pa_simple *simple;
   char *monitor;
   int framerate;
+  logger *logger;
 } audio_capturing_params;
 
 extern circular_array  video_ring_buffer;

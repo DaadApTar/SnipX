@@ -1,7 +1,7 @@
 # Compiler and flags
 CC ?= gcc
 CFLAGS = -Wall -Wextra -Iinclude -ggdb
-LDFLAGS := -lX11 -lXinerama -lpulse-simple -lpulse -lpthread
+LDFLAGS := -lX11 -lXinerama -lXext -lpulse-simple -lpulse -lpthread
 
 SENDER ?= true
 
