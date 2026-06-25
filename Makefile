@@ -1,7 +1,8 @@
 # Compiler and flags
 CC ?= gcc
 CFLAGS = -Wall -Wextra -Iinclude -ggdb
-LDFLAGS := -lX11 -lXinerama -lXext -lpulse-simple -lpulse -lpthread
+LDFLAGS ?=
+LDLIBS := -lX11 -lXinerama -lXext -lpulse-simple -lpulse -lpthread
 
 SENDER ?= true
 
@@ -45,7 +46,7 @@ all: $(TARGET) $(SENDER_TARGET)
 
 # Link final app
 $(TARGET): $(OBJ_FILES)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 	@echo "SENDER=$(SENDER)" > $(BUILD_CONFIG)
 
 $(SENDER_TARGET):
@@ -70,7 +71,7 @@ test: $(TEST_BIN)
 
 # Link test binary
 $(TEST_BIN): $(TEST_OBJ)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Compile test files
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
