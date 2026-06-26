@@ -117,8 +117,6 @@ void test_Xscreenshot() {
 #define AUDIO_BYTES_PER_FRAME ((SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE) / RECORDING_FPS)
 
 void test_Xvideo() {
-  // TODO: capturing the screen is very long. Use XShm
-
   // FFmpeg part
 
 

@@ -3,6 +3,9 @@
 SnipX is an utility for recording instant replays on X11, sending and storing them on autonomous server. Inspired by [medal.tv](https://medal.tv)
 ## Requirements
 - X11 server
+- libXinerama
+- libXext
+- Go (for sending, [can be disabled](##Building))
 - PulseAudio
 - A lot of free space in RAM (yet)
 ## Building
@@ -17,6 +20,7 @@ $ SENDER=false make
 ```console
 $ make install
 ```
+For NixOS follow [NixOS build and install instructions](./NIXOS.md).
 ## Usage
 Starting recording.
 ```console
@@ -40,4 +44,8 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Connect sender.
 - [x] Add saving files locally until the server is available
 - [x] Add capturing the screen via shared memory
-- [ ] Add NVENC support
+- [ ] Replace simple pulseaudio API with stream API.
+- [ ] Add support of second audio stream.
+- [ ] Add list of available sound monitors.
+- [ ] Add polled render.
+- [ ] Add real-time video compression
