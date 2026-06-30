@@ -46,9 +46,9 @@ typedef struct {
   char *sound_monitor;
   bool brake;
   bool help;
+  int port;
   int length;
   char *address;
-  int port;
   bool locally;
   long bitrate;
 } options;

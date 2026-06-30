@@ -25,6 +25,7 @@ options *parse_flags(char **args, size_t size) {
   opts->fps           = 30;
   opts->screen_number = 0;
   opts->sound_monitor = 0;
+  opts->port          = 0;
   opts->bitrate       = 2500000;
   opts->length        = 10;
 #ifndef DISABLE_SENDER

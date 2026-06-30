@@ -24,6 +24,7 @@
 #include "directory_manager.h"
 #include "defaults.h"
 #include "sender.h"
+#include "pa_callbacks.h"
 
 #define ERROR(logger, x) do {                         \
     log_print(logger, LOG_ERROR, "%s\n", x);          \
@@ -63,9 +64,9 @@ int main(int argc, char **argv) {
   }
 
   struct sockaddr_in addr = {
-    .sin_family = AF_INET,
-    .sin_port   = htons(DEFAULT_PORT),
-    .sin_addr   = INADDR_ANY
+    .sin_family        = AF_INET,
+    .sin_port          = htons(DEFAULT_PORT),
+    .sin_addr.s_addr   = htonl(INADDR_ANY)
   };
   socklen_t addrlen = sizeof(addr);
 
@@ -105,7 +106,7 @@ int main(int argc, char **argv) {
   bool is_stopped = false;
   uint8_t socket_buffer[SOCKET_BUFFER_SIZE] = {0};
 
-  pthread_t video_thread, audio_thread;
+  pthread_t video_thread;
 #ifndef DISABLE_SENDER
   pthread_t sender_thread;
 #endif
@@ -113,21 +114,22 @@ int main(int argc, char **argv) {
   atomic_store(&running_flag, 1);
 
   // Initialise pulseaudio
-  static const pa_sample_spec sample_spec = {
-    .format   = PA_SAMPLE_S16LE,
-    .rate     = SNIPX_PA_SAMPLE_RATE,
-    .channels = SNIPX_PA_CHANNELS
-  };
-  pa_simple *simple = 0;
-  int error;
-
   log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
-  if ((simple = pa_simple_new(0, "snipx", PA_STREAM_RECORD,
-                              0, "record", &sample_spec, 0, 0, &error)) == 0) {
-    fprintf(stderr, "Cannot create PulseAudio connection: %s.\n", pa_strerror(error));
-    close(socket_fd);
-    return 1;
-  }
+
+  pa_threaded_mainloop *ml = pa_threaded_mainloop_new();
+  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(ml);
+
+  pa_context *context = pa_context_new(pa_api, "SnipX");
+
+  audio_capturing_params audio_params = {
+    .monitor = opts->sound_monitor,
+    .stream = NULL,
+    .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
+    .logger = &logger,
+  };
+
+  pa_context_set_state_callback(context, context_state_cb, (void*)&audio_params);
+  pa_context_connect(context, NULL, 0, NULL);
 
   // Initialise X11
 
@@ -216,6 +218,7 @@ int main(int argc, char **argv) {
   circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
   log_print(&logger, LOG_INFO, "Initialising audio buffer.\n");
   circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+  /* circular_array_init(&audio_ring_buffer, opts->fps * opts->length, 65536); */
 
   video_capturing_params video_params = {
     .display = display,
@@ -238,13 +241,7 @@ int main(int argc, char **argv) {
   };
   snprintf(temp_sender_params.port, 8, "%d", opts->port);
 #endif
-
-  audio_capturing_params audio_params = {
-    .monitor = opts->sound_monitor,
-    .simple = simple,
-    .framerate = opts->fps,
-    .logger = &logger,
-  };
+  buffer_index = 0;
 
 #ifndef DISABLE_SENDER
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
@@ -253,7 +250,8 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
-  pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
+  pa_threaded_mainloop_start(ml);
+  //pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
 
   int client_fd;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
@@ -270,8 +268,22 @@ int main(int argc, char **argv) {
       is_stopped = true;
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
-      pthread_join(audio_thread, 0);
-      pa_simple_free(simple);
+      /* pthread_join(audio_thread, 0); */
+      pa_threaded_mainloop_stop(ml);
+
+      // Free PA stream
+      pa_stream_disconnect(audio_params.stream);
+      pa_stream_unref(audio_params.stream);
+      audio_params.stream = NULL;
+
+      // Free PA context.
+      pa_context_disconnect(context);
+      pa_context_unref(context);
+      context = NULL;
+
+      // Free PA mainloop
+      pa_threaded_mainloop_free(ml);
+      ml = NULL;
 
       // Create tmp directory.
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
@@ -286,12 +298,13 @@ int main(int argc, char **argv) {
       ffmpeg *sound = ffmpeg_init_sound(sound_filename);
 
       uint8_t *audio;
-      int audio_start = atomic_load(&audio_frame_counter) - opts->fps * opts->length;
+      int audio_start = buffer_index - opts->fps * opts->length;
       if (audio_start < 0) audio_start = 0;
       log_print(&logger, LOG_INFO, "Flushing sound into output.aac\n");
-      for (int i = audio_start; i < atomic_load(&audio_frame_counter); ++i) {
+      for (size_t i = audio_start; i < buffer_index; ++i) {
         audio = circular_array_get(&audio_ring_buffer, i);
         ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+        /* ffmpeg_push_frame(sound, audio, 65536); */
       }
       ffmpeg_close(sound);
 

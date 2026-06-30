@@ -44,7 +44,7 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Connect sender.
 - [x] Add saving files locally until the server is available
 - [x] Add capturing the screen via shared memory
-- [ ] Replace simple pulseaudio API with stream API.
+- [x] Replace simple pulseaudio API with stream API.
 - [ ] Add support of second audio stream.
 - [ ] Add list of available sound monitors.
 - [ ] Add polled render.

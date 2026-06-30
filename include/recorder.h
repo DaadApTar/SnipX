@@ -4,7 +4,7 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <bits/pthreadtypes.h>
-#include <pulse/simple.h>
+#include <pulse/stream.h>
 #include <stdatomic.h>
 #include "log.h"
 
@@ -28,9 +28,9 @@ typedef struct {
 } video_capturing_params;
 
 typedef struct {
-  pa_simple *simple;
+  pa_stream *stream;
   char *monitor;
-  int framerate;
+  size_t fragsize;
   logger *logger;
 } audio_capturing_params;
 
@@ -44,11 +44,6 @@ extern atomic_int      video_frame_counter, audio_frame_counter;
  *  @param[in] arg #video_capturing_params.
  */
 void *thread_video_capturing(void *arg);
-
-/** @brief Thread for capturing audio.
- *  @param[in] arg #audio_capturing_params.
- */
-void *thread_audio_capturing(void *arg);
 
 /** @todo: implement later.
  *  @brief encodes video and audio.
