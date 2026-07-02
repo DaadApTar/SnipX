@@ -18,7 +18,11 @@ void print_usage(char *program) {
   printf("\n");
 }
 
+#ifndef DISABLE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+#else
+static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+#endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
@@ -47,7 +51,11 @@ options *parse_flags(char **args, size_t size) {
       free(opts);
       return 0;
     }
+#ifndef DISABLE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+#else
+static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+#endif
     switch (option) {
     case SCREEN_NUMBER:
       opts->screen_number = atoi(args[i+1]);
@@ -70,17 +78,19 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
     case BRAKE:
       opts->brake = true;
       break;
+#ifndef DISABLE_SENDER
     case ADDRESS:
       opts->address = args[i+1];
       break;
     case PORT:
       opts->port = atoi(args[i+1]);
       break;
-    case HELP:
-      opts->help = true;
-      break;
     case LOCALLY:
       opts->locally = true;
+      break;
+#endif
+    case HELP:
+      opts->help = true;
       break;
     default:
       free(opts);
@@ -92,7 +102,11 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
   return opts;
 }
 
+#ifndef DISABLE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+#else
+static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+#endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
   [SCREEN_NUMBER] = NUMBER,
@@ -103,9 +117,11 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [BRAKE] = NONE,
   [LENGTH] = NUMBER,
   [BITRATE] = NUMBER,
+#ifndef DISABLE_SENDER
   [ADDRESS] = STRING,
   [PORT] = NUMBER,
   [LOCALLY] = NONE,
+#endif
   [HELP] = NONE,
 };
 

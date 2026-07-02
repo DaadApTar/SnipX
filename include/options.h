@@ -18,9 +18,11 @@ typedef enum {
   BRAKE,
   LENGTH,
   BITRATE,
+#ifndef DISABLE_SENDER
   ADDRESS,
   PORT,
   LOCALLY,
+#endif
   HELP,
 
   OPTION_TYPE_LENGTH
