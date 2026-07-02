@@ -59,8 +59,6 @@ int main(int argc, char **argv) {
   logger logger;
   log_init(&logger);
 
-  log_print(&logger, LOG_INFO, "desktop = %s\nmic = %s\n", opts->desktop_sound_monitor, opts->mic_sound_monitor);
-
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd == -1) {
