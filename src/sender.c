@@ -93,13 +93,15 @@ int send_temp_files(logger logger, char *address, char *port, char* path) {
     if (file->d_type == DT_REG && strstr(file->d_name, ".mp4") != 0) {
       char filepath[256];
       snprintf(filepath, 256, "%s%s", path, file->d_name);
-      if (send_video(logger, address, port, filepath) == -1) break;
+      if (send_video(logger, address, port, filepath) == -1) return -1;
     }
   }
+  return 0;
 }
 
 void *thread_send_temp_files(void *args) {
   sender_params *params = (sender_params *)args;
   send_temp_files(params->logger, params->address, params->port, params->path);
+  return 0;
 }
 #endif

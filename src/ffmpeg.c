@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <sys/wait.h>
 
+#define VIDEO_ARG_CAPACITY 64
+
 ffmpeg *ffmpeg_init_sound(char *soundname) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
   int ffmpeg_pipe[2];
@@ -28,7 +30,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname) {
     close(ffmpeg_pipe[0]);
     int status_code = execlp("ffmpeg",
                              "ffmpeg",
-                             "-loglevel", "verbose",
+                             /* "-loglevel", "verbose", */
                              "-y",
 
                              "-f", "s16le",
@@ -53,7 +55,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname) {
   return result;
 }
 
-ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, int screen_height, int fps, int bitrate) {
+ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_amount, char **filenames) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
   int ffmpeg_pipe[2];
 
@@ -84,24 +86,66 @@ ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, in
     char bitrate_str[64];
     snprintf(bitrate_str, sizeof(bitrate_str), "%d", bitrate);
 
-    int status_code = execlp("ffmpeg",
-                             "ffmpeg",
-                             "-loglevel", "verbose",
-                             "-y",
+    char *argv[VIDEO_ARG_CAPACITY];
+    int n = 0;
+    argv[n++] = "ffmpeg";
+    argv[n++] = "-y";
 
-                             "-f", "rawvideo",
-                             "-pix_fmt", "bgr0",
-                             "-s", resolution,
-                             "-r", framerate,
-                             "-i", "-",
-                             "-i", soundname,
+    argv[n++] = "-f";
+    argv[n++] = "rawvideo";
 
-                             "-c:v", "libx264",
-                             "-vb", bitrate_str,
-                             "-c:a", "aac",
-                             "-ab", "200k",
-                             "-pix_fmt", "yuv420p",
-                             videoname, (char *)NULL);
+    argv[n++] = "-pix_fmt";
+    argv[n++] = "bgr0";
+
+    argv[n++] = "-s";
+    argv[n++] = resolution;
+
+    argv[n++] = "-r";
+    argv[n++] = framerate;
+
+    argv[n++] = "-i";
+    argv[n++] = "-";
+    
+    for (size_t i = 0; i < sound_files_amount; ++i) {
+      argv[n++] = "-i";
+      argv[n++] = filenames[i];
+    }
+
+    argv[n++] = "-map";
+    argv[n++] = "0:v";
+
+    size_t offset = 0;
+    char *filter = (char*)malloc(128);
+    for (size_t i = 0; i < sound_files_amount; ++i) {
+      offset += snprintf(filter+offset, 128, "[%zu:a]", i+1);
+    }
+    snprintf(filter+offset, 128, "amix=inputs=%d[a]", sound_files_amount);
+
+    argv[n++] = "-filter_complex";
+    argv[n++] = filter;
+
+    argv[n++] = "-map";
+    argv[n++] = "[a]";
+
+    argv[n++] = "-c:v";
+    argv[n++] = "libx264";
+
+    argv[n++] = "-vb";
+    argv[n++] = bitrate_str;
+
+    argv[n++] = "-c:a";
+    argv[n++] = "aac";
+
+    argv[n++] = "-ab";
+    argv[n++] = "200k";
+
+    argv[n++] = "-pix_fmt";
+    argv[n++] = "yuv420p";
+
+    argv[n++] = videoname;
+    argv[n++] = NULL;
+
+    int status_code = execvp("ffmpeg", argv);
     if (status_code < 0) {
       free(result);
       return 0;

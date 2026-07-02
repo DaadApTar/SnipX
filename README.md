@@ -30,6 +30,18 @@ Saving replay.
 ```console
 $ snipx -b
 ```
+## Setting sound monitors
+To record audio, you need to select the correct audio sources for your microphone and desktop audio. You can do this either by using the `--desktop` and `--mic` flags or by configuring them in `pavucontrol`.
+
+If you don't specify a microphone source, microphone audio will not be recorded.
+
+To find the available sources from the command line, run:
+
+```sh
+pactl list sources short
+```
+
+The output will contain source names such as `alsa_input...` (microphones) and `alsa_output...monitor` (desktop/system audio). Pass these names to the `--mic` and `--desktop` flags respectively.
 ## Logging
 By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
 ## Env variables
@@ -45,7 +57,7 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Add saving files locally until the server is available
 - [x] Add capturing the screen via shared memory
 - [x] Replace simple pulseaudio API with stream API.
-- [ ] Add support of second audio stream.
+- [x] Add support of second audio stream.
 - [ ] Add list of available sound monitors.
 - [ ] Add polled render.
 - [ ] Add real-time video compression

@@ -15,6 +15,4 @@ void context_state_cb(pa_context*, void*);
  */
 pa_stream* pa_get_stream();
 
-extern size_t buffer_index;
-
 #endif

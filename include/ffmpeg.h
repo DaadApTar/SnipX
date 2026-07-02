@@ -14,7 +14,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname);
 /** @brief Inits a ffmpeg instance for video and sound.
  *  @return Pointer to ffmpeg instance if succeed, NULL on error.
  */
-ffmpeg *ffmpeg_init_video(char *soundname, char *videoname, int screen_width, int screen_height, int fps, int bitrate);
+ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_amount, char **filenames);
 
 /** @brief Pushes frame into ffmpeg output file.
  *  @param[in] instance ffmpeg instance.

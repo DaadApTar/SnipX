@@ -2,16 +2,13 @@
 #include "circular_array.h"
 #include "recorder.h"
 
-circular_array audio_ring_buffer;
-size_t buffer_index;
-
 void read_cb(pa_stream *s, size_t nbytes, void *userdata) {
-  audio_capturing_params *params = (audio_capturing_params *)userdata;
+  stream_info *info = (stream_info *)userdata;
   pa_usec_t usec_t;
-  int res = pa_stream_get_time(params->stream, &usec_t); if (res == 0) {
+  int res = pa_stream_get_time(info->stream, &usec_t); if (res == 0) {
     //printf("%.3f\n", usec_t / 1000000.0);
   } else {
-    //printf("Error: %s\n", pa_strerror(pa_context_errno(pa_stream_get_context(stream))));
+    /* log_print(info->logger, LOG_ERROR, "Error: %s\n", pa_strerror(pa_context_errno(pa_stream_get_context(info->stream)))); */
   }
 
   const void *data;
@@ -19,16 +16,17 @@ void read_cb(pa_stream *s, size_t nbytes, void *userdata) {
   pa_stream_peek(s, &data, &nbytes);
 
   if (data && nbytes > 0) {
-    circular_array_push(&audio_ring_buffer, (void *)data, buffer_index);
+    circular_array_push(&info->ring_buffer, (void *)data, *info->buffer_index);
   }
 
   pa_stream_drop(s);
-  buffer_index++;
+  (*info->buffer_index)++;
 }
 
 void context_state_cb(pa_context *c, void *userdata) {
   audio_capturing_params *params = (audio_capturing_params *)userdata;
   if (pa_context_get_state(c) != PA_CONTEXT_READY) return;
+  if (params->desktop_stream->stream || params->mic_stream->stream) return;
 
   pa_sample_spec ss = {
     .format = PA_SAMPLE_S16LE,
@@ -44,12 +42,15 @@ void context_state_cb(pa_context *c, void *userdata) {
     .prebuf = (uint32_t) -1,
   };
 
-  params->stream = pa_stream_new(c, "record", &ss, NULL);
-  pa_stream_set_read_callback(params->stream, read_cb, userdata);
+  // Desktop stream
+  params->desktop_stream->stream = pa_stream_new(c, params->desktop_stream->name, &ss, NULL);
+  pa_stream_set_read_callback(params->desktop_stream->stream, read_cb, (void *)params->desktop_stream);
 
-  pa_stream_connect_record(params->stream, NULL, &attr, PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_ADJUST_LATENCY);
-}
+  pa_stream_connect_record(params->desktop_stream->stream, params->desktop_stream->monitor, &attr, PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_ADJUST_LATENCY);
 
-void reset_audio_buffer_index() {
-  buffer_index = 0;
+  // Mic stream
+   params->mic_stream->stream = pa_stream_new(c, params->mic_stream->name, &ss, NULL);
+   pa_stream_set_read_callback(params->mic_stream->stream, read_cb, (void *)params->mic_stream);
+
+   pa_stream_connect_record(params->mic_stream->stream, params->mic_stream->monitor, &attr, PA_STREAM_AUTO_TIMING_UPDATE | PA_STREAM_INTERPOLATE_TIMING | PA_STREAM_ADJUST_LATENCY);
 }

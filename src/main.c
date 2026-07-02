@@ -37,6 +37,8 @@
 #define STOP_COMMAND {0xFA, 0xDE}
 #define STOP_COMMAND_SIZE 2
 
+#define SOUND_FILES_CAPACITY 2
+
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -56,6 +58,8 @@ int main(int argc, char **argv) {
 
   logger logger;
   log_init(&logger);
+
+  log_print(&logger, LOG_INFO, "desktop = %s\nmic = %s\n", opts->desktop_sound_monitor, opts->mic_sound_monitor);
 
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -113,23 +117,6 @@ int main(int argc, char **argv) {
   pthread_mutex_init(&lock, 0);
   atomic_store(&running_flag, 1);
 
-  // Initialise pulseaudio
-  log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
-
-  pa_threaded_mainloop *ml = pa_threaded_mainloop_new();
-  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(ml);
-
-  pa_context *context = pa_context_new(pa_api, "SnipX");
-
-  audio_capturing_params audio_params = {
-    .monitor = opts->sound_monitor,
-    .stream = NULL,
-    .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
-    .logger = &logger,
-  };
-
-  pa_context_set_state_callback(context, context_state_cb, (void*)&audio_params);
-  pa_context_connect(context, NULL, 0, NULL);
 
   // Initialise X11
 
@@ -151,7 +138,6 @@ int main(int argc, char **argv) {
   }
 
   log_print(&logger, LOG_INFO, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
-
 
   int num_screens = 0;
   log_print(&logger, LOG_INFO, "Getting existing screens.\n");
@@ -212,14 +198,6 @@ int main(int argc, char **argv) {
   }
   XSync(display, False);
 
-  // Initialise ring buffers.
-
-  log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
-  log_print(&logger, LOG_INFO, "Initialising audio buffer.\n");
-  circular_array_init(&audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-  /* circular_array_init(&audio_ring_buffer, opts->fps * opts->length, 65536); */
-
   video_capturing_params video_params = {
     .display = display,
     .window = root,
@@ -229,6 +207,53 @@ int main(int argc, char **argv) {
     .framerate = opts->fps,
     .logger = &logger,
   };
+
+  // Initialise ring buffers.
+
+  circular_array desktop_audio_ring_buffer;
+  circular_array mic_audio_ring_buffer;
+
+  log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
+  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
+  log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
+  circular_array_init(&desktop_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+  circular_array_init(&mic_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+
+  // Initialise pulseaudio
+  log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
+
+  pa_threaded_mainloop *ml = pa_threaded_mainloop_new();
+  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(ml);
+
+  size_t desktop_buffer_index = 0;
+  size_t mic_buffer_index = 0;
+
+  stream_info desktop_stream = {
+      .monitor = opts->desktop_sound_monitor,
+      .name = "Desktop Audio",
+      .ring_buffer = desktop_audio_ring_buffer,
+      .stream = NULL,
+      .buffer_index = &desktop_buffer_index,
+  };
+
+  stream_info mic_stream = {
+      .monitor = opts->mic_sound_monitor,
+      .name = "Mic/Aux",
+      .ring_buffer = mic_audio_ring_buffer,
+      .stream = NULL,
+      .buffer_index = &mic_buffer_index,
+  };
+
+  audio_capturing_params audio_params = {
+      .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
+      .logger = &logger,
+      .desktop_stream = &desktop_stream,
+      .mic_stream = &mic_stream,
+  };
+
+  pa_context *audio_context = pa_context_new(pa_api, "SnipX");
+  pa_context_set_state_callback(audio_context, context_state_cb, (void*)&audio_params);
+  pa_context_connect(audio_context, NULL, 0, NULL);
 
 #ifndef DISABLE_SENDER
   char port[8];
@@ -241,7 +266,6 @@ int main(int argc, char **argv) {
   };
   snprintf(temp_sender_params.port, 8, "%d", opts->port);
 #endif
-  buffer_index = 0;
 
 #ifndef DISABLE_SENDER
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
@@ -268,18 +292,25 @@ int main(int argc, char **argv) {
       is_stopped = true;
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
-      /* pthread_join(audio_thread, 0); */
       pa_threaded_mainloop_stop(ml);
 
-      // Free PA stream
-      pa_stream_disconnect(audio_params.stream);
-      pa_stream_unref(audio_params.stream);
-      audio_params.stream = NULL;
+      // Free PA streams
+      if (audio_params.desktop_stream->stream != NULL) {
+        pa_stream_disconnect(audio_params.desktop_stream->stream);
+        pa_stream_unref(audio_params.desktop_stream->stream);
+        audio_params.desktop_stream->stream = NULL;
+      }
+
+      if (audio_params.mic_stream->stream != NULL) {
+        pa_stream_disconnect(audio_params.mic_stream->stream);
+        pa_stream_unref(audio_params.mic_stream->stream);
+        audio_params.mic_stream->stream = NULL;
+      }
 
       // Free PA context.
-      pa_context_disconnect(context);
-      pa_context_unref(context);
-      context = NULL;
+      pa_context_disconnect(audio_context);
+      pa_context_unref(audio_context);
+      audio_context = NULL;
 
       // Free PA mainloop
       pa_threaded_mainloop_free(ml);
@@ -291,22 +322,44 @@ int main(int argc, char **argv) {
       
       // ffmpeg
 
-      // Sound file
-      char sound_filename[256];
-      snprintf(sound_filename, 256, "%s/output.aac", temp_directory);
-
-      ffmpeg *sound = ffmpeg_init_sound(sound_filename);
-
       uint8_t *audio;
-      int audio_start = buffer_index - opts->fps * opts->length;
-      if (audio_start < 0) audio_start = 0;
-      log_print(&logger, LOG_INFO, "Flushing sound into output.aac\n");
-      for (size_t i = audio_start; i < buffer_index; ++i) {
-        audio = circular_array_get(&audio_ring_buffer, i);
-        ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-        /* ffmpeg_push_frame(sound, audio, 65536); */
+
+      // Desktop sound file
+      char desktop_sound_filename[256];
+      snprintf(desktop_sound_filename, 256, "%s/desktop.aac", temp_directory);
+
+      ffmpeg *desktop_sound = ffmpeg_init_sound(desktop_sound_filename);
+
+      size_t audio_start;
+      if (*audio_params.desktop_stream->buffer_index < (size_t)(opts->fps * opts->length)) audio_start = 0;
+      else audio_start = *audio_params.desktop_stream->buffer_index - opts->fps * opts->length;
+
+      log_print(&logger, LOG_INFO, "Flushing sound into %s\n", desktop_sound_filename);
+      for (size_t i = audio_start; i < *audio_params.desktop_stream->buffer_index; ++i) {
+        audio = circular_array_get(&audio_params.desktop_stream->ring_buffer, i);
+        ffmpeg_push_frame(desktop_sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
       }
-      ffmpeg_close(sound);
+      ffmpeg_close(desktop_sound);
+
+      // Mic sound file
+      char mic_sound_filename[256];
+      if (opts->mic_sound_monitor != NULL) {
+        snprintf(mic_sound_filename, 256, "%s/mic.aac", temp_directory);
+
+        ffmpeg *mic_sound = ffmpeg_init_sound(mic_sound_filename);
+
+        if (*audio_params.mic_stream->buffer_index < (size_t)(opts->fps * opts->length)) audio_start = 0;
+        else audio_start = *audio_params.mic_stream->buffer_index - opts->fps * opts->length;
+
+        log_print(&logger, LOG_INFO, "Flushing sound into %s\n", mic_sound_filename);
+        for (size_t i = audio_start; i < *audio_params.mic_stream->buffer_index;
+            ++i) {
+          audio = circular_array_get(&audio_params.mic_stream->ring_buffer, i);
+          ffmpeg_push_frame(mic_sound, audio,
+                            SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+        }
+        ffmpeg_close(mic_sound);
+      }
 
       // Video file
       char video_filename[256] = {0};
@@ -314,14 +367,29 @@ int main(int argc, char **argv) {
       else snprintf(video_filename, sizeof(video_filename), "%s/%s.mp4", temp_directory, log_get_time());
 
       uint32_t *frame;
-      ffmpeg *video = ffmpeg_init_video(sound_filename, video_filename, screen_width, screen_height, opts->fps, opts->bitrate);
+
+      char *sound_files[SOUND_FILES_CAPACITY];
+      unsigned int sound_files_amount = 0;
+      if (opts->mic_sound_monitor != NULL) {
+        sound_files[0] = desktop_sound_filename;
+        sound_files[1] = mic_sound_filename;
+        sound_files_amount = 2;
+      } else {
+        sound_files[0] = desktop_sound_filename;
+        sound_files[1] = NULL;
+        sound_files_amount = 1;
+      }
+
+      ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, sound_files_amount, sound_files);
       int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
       if (video_start < 0) video_start = 0;
+
       log_print(&logger, LOG_INFO, "Flushing video into %s\n", video_filename);
       for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
         frame = circular_array_get(&video_ring_buffer, i);
         ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
       }
+
       ffmpeg_close(video);
 
 #ifndef DISABLE_SENDER

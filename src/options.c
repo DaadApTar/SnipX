@@ -59,7 +59,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
       opts->desktop_sound_monitor = args[i+1];
       break;
     case MIC_SOUND_MONITOR:
-      opts->desktop_sound_monitor = args[i+1];
+      opts->mic_sound_monitor = args[i+1];
       break;
     case LENGTH:
       opts->length = atoi(args[i+1]);

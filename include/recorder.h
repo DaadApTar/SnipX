@@ -28,14 +28,23 @@ typedef struct {
 } video_capturing_params;
 
 typedef struct {
-  pa_stream *stream;
   char *monitor;
+  const char *name;
+  circular_array ring_buffer;
+  pa_stream *stream;
+  size_t *buffer_index;
+} stream_info;
+
+typedef struct {
   size_t fragsize;
   logger *logger;
+  /** @note stream is set inside state callback.
+   */
+  stream_info *desktop_stream;
+  stream_info *mic_stream;
 } audio_capturing_params;
 
 extern circular_array  video_ring_buffer;
-extern circular_array  audio_ring_buffer;
 extern atomic_bool     running_flag;
 extern pthread_mutex_t lock;
 extern atomic_int      video_frame_counter, audio_frame_counter;
