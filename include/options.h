@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <assert.h>
 
 /**
  * Types of options.
@@ -10,9 +11,10 @@
 typedef enum {
   UNKNOWN = 0,
   SCREEN_NUMBER,
-  WINDOW, // Isn't implemented yet.
+  /* WINDOW, // Isn't implemented yet. */
   FPS,
-  SOUND_MONITOR,
+  DESKTOP_SOUND_MONITOR,
+  MIC_SOUND_MONITOR,
   BRAKE,
   LENGTH,
   BITRATE,
@@ -43,7 +45,8 @@ typedef struct {
   int screen_number;
   int window;
   int fps;
-  char *sound_monitor;
+  char *desktop_sound_monitor;
+  char *mic_sound_monitor;
   bool brake;
   bool help;
   int port;
@@ -57,7 +60,8 @@ static flag available_flags[] = {
   {"screen",       's', "Screen to record.", SCREEN_NUMBER, /*WINDOW,*/ .priority = 1},
   //{"window",       'w', "Window to record.", WINDOW, SCREEN_NUMBER, .priority = 0},
   {"fps",          'f', "Framerate.", FPS,                          .priority = 0},
-  {"monitor",      'm', "Sound monitor to record.", SOUND_MONITOR,  .priority = 0},
+  {"desktop",      'd', "Desktop sound monitor to record.", DESKTOP_SOUND_MONITOR,  .priority = 0},
+  {"mic",      'm', "Mic sound monitor to record.", MIC_SOUND_MONITOR,  .priority = 0},
   {"length",       'l', "Length of the video in seconds.", LENGTH,  .priority = 0},
   {"bitrate",        0, "Video bitrate.", BITRATE,                  .priority = 0},
   {"brake",        'b', "Brake the recording.", BRAKE,              .priority = 2},
@@ -68,6 +72,8 @@ static flag available_flags[] = {
 #endif
   {"help",         'h', "Print this message", HELP,                 .priority = 0},
 };
+
+static_assert(sizeof(available_flags) / sizeof(flag) == OPTION_TYPE_LENGTH - 1, "Not all options are set in flags.");
 
 extern value_type value_types[OPTION_TYPE_LENGTH];
 
