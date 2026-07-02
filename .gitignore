@@ -6,3 +6,5 @@ build/
 *.aac
 html/
 .*
+flake.lock
+result

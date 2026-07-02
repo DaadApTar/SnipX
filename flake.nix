@@ -9,20 +9,19 @@
       version = "0.1.0";
       src = ./.;
 
-      nativeBuildInputs =
-      [
-        pkgs.gnumake
-        pkgs.pkg-config
+      nativeBuildInputs = with pkgs; [
+        gnumake
+        pkg-config
       ]
-      ++ pkgs.lib.optionals sender [
-        pkgs.go
+      ++ lib.optionals sender [
+        go
       ];
 
-      buildInputs = [
-        pkgs.libx11
-        pkgs.libxinerama
-        pkgs.libxext
-        pkgs.libpulseaudio
+      buildInputs = with pkgs; [
+        libx11
+        libxinerama
+        libxext
+        libpulseaudio
       ];
 
       buildPhase = ''
