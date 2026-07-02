@@ -38,7 +38,7 @@ If you don't specify a microphone source, microphone audio will not be recorded.
 To find the available sources from the command line, run:
 
 ```sh
-pactl list sources short
+$ pactl list sources short
 ```
 
 The output will contain source names such as `alsa_input...` (microphones) and `alsa_output...monitor` (desktop/system audio). Pass these names to the `--mic` and `--desktop` flags respectively.
