@@ -22,3 +22,9 @@ void *circular_array_get(circular_array *array, int index) {
   size_t idx = index % array->length;
   return array->data + idx * array->size;
 }
+
+void circular_array_free(circular_array *array) {
+  free(array->data);
+  array->size = 0;
+  array->length = 0;
+}

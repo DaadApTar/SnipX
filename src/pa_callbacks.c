@@ -4,23 +4,30 @@
 
 void read_cb(pa_stream *s, size_t nbytes, void *userdata) {
   stream_info *info = (stream_info *)userdata;
+  /*
+    NOTE: This block was intended to store samples timestamp.
+    Whenever I encounter a video&audio desynchronization, I
+    will uncomment and use this.
+
   pa_usec_t usec_t;
-  int res = pa_stream_get_time(info->stream, &usec_t); if (res == 0) {
-    //printf("%.3f\n", usec_t / 1000000.0);
+  int res = pa_stream_get_time(info->stream, &usec_t);
+  if (res == 0) {
+    printf("%.3f\n", usec_t / 1000000.0);
   } else {
-    /* log_print(info->logger, LOG_ERROR, "Error: %s\n", pa_strerror(pa_context_errno(pa_stream_get_context(info->stream)))); */
+    log_print(info->logger, LOG_ERROR, "Error: %s\n", pa_strerror(pa_context_errno(pa_stream_get_context(info->stream))));
   }
+  */
 
   const void *data;
 
   pa_stream_peek(s, &data, &nbytes);
 
   if (data && nbytes > 0) {
-    circular_array_push(&info->ring_buffer, (void *)data, *info->buffer_index);
+    circular_array_push(&info->ring_buffer, (void *)data, info->buffer_index);
   }
 
   pa_stream_drop(s);
-  (*info->buffer_index)++;
+  info->buffer_index++;
 }
 
 void context_state_cb(pa_context *c, void *userdata) {

@@ -30,4 +30,9 @@ int circular_array_push(circular_array *array, void *data, size_t index);
  */
 void *circular_array_get(circular_array *array, int index);
 
+/** @brief Deallocates the data inside buffer and sets fiels to 0;
+ *  @param[in] array pointer to array.
+ */
+void circular_array_free(circular_array *array);
+
 #endif

@@ -55,7 +55,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname) {
   return result;
 }
 
-ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_amount, char **filenames) {
+ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_cap, char **filenames) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
   int ffmpeg_pipe[2];
 
@@ -106,20 +106,33 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
     argv[n++] = "-i";
     argv[n++] = "-";
     
-    for (size_t i = 0; i < sound_files_amount; ++i) {
+    unsigned int amount = 0;
+    for (size_t i = 0; i < sound_files_cap && filenames[i] != NULL; ++i) {
       argv[n++] = "-i";
       argv[n++] = filenames[i];
+      amount++;
     }
 
     argv[n++] = "-map";
     argv[n++] = "0:v";
 
     size_t offset = 0;
-    char *filter = (char*)malloc(128);
-    for (size_t i = 0; i < sound_files_amount; ++i) {
-      offset += snprintf(filter+offset, 128, "[%zu:a]", i+1);
+    size_t cap = 128;
+    char *filter = (char*)malloc(cap);
+    for (size_t i = 0; i < amount; ++i) {
+      int needed = snprintf(NULL, 0, "[%zu:a]", i + 1);
+      if (offset + (size_t)needed + 1 > cap) {
+        cap = (offset + needed) * 2;
+        filter = realloc(filter, cap);
+      }
+      offset += snprintf(filter+offset, 128 - offset, "[%zu:a]", i+1);
     }
-    snprintf(filter+offset, 128, "amix=inputs=%d[a]", sound_files_amount);
+    int needed = snprintf(NULL, 0, "amix=inputs=%du[a]", amount);
+    if (offset + (size_t)needed + 1 > cap) {
+      cap = (offset + needed) * 2;
+      filter = realloc(filter, cap);
+    }
+    snprintf(filter+offset, cap - offset, "amix=inputs=%d[a]", amount);
 
     argv[n++] = "-filter_complex";
     argv[n++] = filter;

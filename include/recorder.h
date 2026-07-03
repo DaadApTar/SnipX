@@ -25,38 +25,34 @@ typedef struct {
   int screen_y;
   int framerate;
   logger *logger;
+  circular_array ring_buffer;
 } video_capturing_params;
 
+/** @brief PulseAudio stream info for reading.
+ *  @note stream and buffer_index are set inside read callback.
+ */
 typedef struct {
   char *monitor;
   const char *name;
   circular_array ring_buffer;
   pa_stream *stream;
-  size_t *buffer_index;
+  size_t buffer_index;
 } stream_info;
 
 typedef struct {
   size_t fragsize;
   logger *logger;
-  /** @note stream is set inside state callback.
-   */
   stream_info *desktop_stream;
   stream_info *mic_stream;
 } audio_capturing_params;
 
-extern circular_array  video_ring_buffer;
 extern atomic_bool     running_flag;
 extern pthread_mutex_t lock;
-extern atomic_int      video_frame_counter, audio_frame_counter;
+extern atomic_int      video_frame_counter;
 
 /** @brief Thread for capturing video.
  *  @param[in] arg #video_capturing_params.
  */
 void *thread_video_capturing(void *arg);
-
-/** @todo: implement later.
- *  @brief encodes video and audio.
- */
-void *thread_nvenc_encoding(void *arg);
 
 #endif

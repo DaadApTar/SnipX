@@ -26,11 +26,18 @@
 #include "sender.h"
 #include "pa_callbacks.h"
 
-#define ERROR(logger, x) do {                         \
-    log_print(logger, LOG_ERROR, "%s\n", x);          \
+/** @brief Prints an error and exits with exit code 1.
+ *  @param logger logger
+ *  @param message error message
+ */
+#define ERROR(logger, message) do {                   \
+    log_print(logger, LOG_ERROR, "%s\n", message);    \
                    exit(1);                           \
                  } while(0)
-#define ERROR_ERNO(logger) ERROR(logger, strerror(errno))
+/** @brief Prints errno as error and exits with exit code 1.
+ *  @param logger logger
+ */
+#define ERROR_ERRNO(logger) ERROR(logger, strerror(errno))
 
 #define DEFAULT_PORT 4226
 #define SOCKET_BUFFER_SIZE 2
@@ -38,6 +45,227 @@
 #define STOP_COMMAND_SIZE 2
 
 #define SOUND_FILES_CAPACITY 2
+#define PATH_CAPACITY 4096
+
+/** @brief renders sound from ring buffer to file in AAC format.
+ *  @param[in] logger logger
+ *  @param[in] buffer_index index of last set element in ring buffer
+ *  @param[in] ring_buffer the ring buffer itself
+ *  @param[in] fps video framerate
+ *  @param[in] length length of video in seconds
+ *  @param[in] file_path path to file to render.
+ */
+void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
+      uint8_t *audio;
+
+      ffmpeg *sound = ffmpeg_init_sound(file_path);
+
+      size_t audio_start;
+      if (buffer_index < (size_t)(fps * length)) audio_start = 0;
+      else audio_start = buffer_index - fps * length;
+
+      log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
+      for (size_t i = audio_start; i < buffer_index; ++i) {
+        audio = circular_array_get(ring_buffer, i);
+        ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps));
+      }
+
+      ffmpeg_close(sound);
+}
+
+void free_pa(pa_stream *desktop_stream, pa_stream *mic_stream, pa_context *context, pa_threaded_mainloop *ml) {
+      // Free PA streams
+      if (desktop_stream != NULL) {
+        pa_stream_disconnect(desktop_stream);
+        pa_stream_unref(desktop_stream);
+        desktop_stream = NULL;
+      }
+
+      if (mic_stream != NULL) {
+        pa_stream_disconnect(mic_stream);
+        pa_stream_unref(mic_stream);
+        mic_stream = NULL;
+      }
+
+      // Free PA context.
+      pa_context_disconnect(context);
+      pa_context_unref(context);
+      context = NULL;
+
+      // Free PA mainloop
+      pa_threaded_mainloop_free(ml);
+      ml = NULL;
+}
+
+/** @brief Initialises xinerama.
+ *  @param[in] logger logger
+ *  @param[in] display X11 display
+ *  @return true on success.
+ */
+bool init_xinerama(logger *logger, Display *display) {
+  int xinerama_minor, xinerama_major;
+  if (!XineramaQueryExtension(display, &xinerama_minor, &xinerama_major)) {
+    log_print(logger, LOG_ERROR, "Xinerama is not supported.\n");
+    return 0;
+  }
+  if (!XineramaIsActive(display)) {
+    log_print(logger, LOG_ERROR, "Xinerama is not active.\n");
+    return 0;
+  }
+
+  log_print(logger, LOG_INFO, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
+
+  return 1;
+}
+
+/** @brief Renders a video.
+ *  @param[in] logger logger
+ *  @param[in] temp_directory a directory to save temp files.
+ *  @param[in] opts program options.
+ *  @param[in] audio_params struct with all audio information.
+ *  @param[in] video_ring_buffer video ring buffer
+ *  @param[in] screen_width width of recorded screen
+ *  @param[in] screen_height height of recorded screen
+ *  @return path to video file.
+ */
+char *render_video(logger *logger, char *temp_directory,
+                  options *opts, audio_capturing_params *audio_params,
+                  circular_array video_ring_buffer, unsigned int screen_width,
+                  unsigned int screen_height) {
+    // ffmpeg
+
+    char *sound_files[SOUND_FILES_CAPACITY] = {0};
+
+    // Desktop sound
+    char desktop_audio_filename[PATH_CAPACITY];
+    snprintf(desktop_audio_filename, sizeof(desktop_audio_filename), "%s/desktop.aac", temp_directory);
+    render_sound(logger, audio_params->desktop_stream->buffer_index,
+                  &audio_params->desktop_stream->ring_buffer, opts->fps,
+                  opts->length, desktop_audio_filename);
+    sound_files[0] = desktop_audio_filename;
+
+    // Mic sound
+    char mic_audio_filename[PATH_CAPACITY];
+    if (opts->mic_sound_monitor != NULL) {
+      snprintf(mic_audio_filename, sizeof(mic_audio_filename), "%s/mic.aac", temp_directory);
+      render_sound(logger, audio_params->mic_stream->buffer_index,
+                    &audio_params->mic_stream->ring_buffer, opts->fps,
+                    opts->length, mic_audio_filename);
+      sound_files[1] = mic_audio_filename;
+    }
+
+    // Video file
+    char *video_filename = (char*)malloc(PATH_CAPACITY);
+#ifndef DISABLE_SENDER
+    if (opts->locally) snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+    else snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", temp_directory, log_get_time());
+#else
+    snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+    log_print(logger, LOG_INFO, "DEBUG: %s\n", video_filename);
+#endif
+
+    uint32_t *frame;
+
+    ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
+    int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
+    if (video_start < 0) video_start = 0;
+
+    log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
+    for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
+      frame = circular_array_get(&video_ring_buffer, i);
+      ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
+    }
+
+    ffmpeg_close(video);
+
+    return video_filename;
+}
+
+/** @brief Sets coordinates of selected screen.
+ *  @param[in] logger logger
+ *  @param[in] display X11 display
+ *  @param[in] screen_number index of screen to record
+ *  @param[out] screen_x selected screen x
+ *  @param[out] screen_y selected screen y
+ *  @param[out] screen_width selected screen width
+ *  @param[out] screen_height selected screen height
+ *  @param[out] xinerama_screen_number selected screen number given by xinerama
+ *  @return true on success.
+ */
+bool get_screen_data(logger *logger, Display *display,
+                     int screen_number, short *screen_x,
+                     short *screen_y, short *screen_width,
+                     short *screen_height, unsigned int *xinerama_screen_number) {
+  int num_screens = 0;
+  log_print(logger, LOG_INFO, "Getting existing screens.\n");
+  XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
+  if (screen_number > num_screens - 1) {
+    log_print(logger, LOG_ERROR, "Invalid screen number.\n");
+    return 0;
+  }
+
+  XineramaScreenInfo screen_info = screens[screen_number];
+  *screen_x = screen_info.x_org;
+  *screen_y = screen_info.y_org;
+  *screen_width = screen_info.width;
+  *screen_height = screen_info.height;
+  *xinerama_screen_number = screen_info.screen_number;
+  log_print(logger, LOG_INFO, "Screen x: %d, y: %d, width: %d, height: %d.\n", *screen_x, *screen_y, *screen_width, *screen_height);
+
+  return 1;
+}
+
+/** @brief Initialises XShm extension and shared image.
+ *  @param[in] logger logger
+ *  @param[in] display X11 display
+ *  @param[in] screen_width selected screen width
+ *  @param[in] screen_height selected screen height
+ *  @param[in] xinerama_screen_number selected screen number given by xinerama.
+ *  @param[out] shminfo shared memory with X11 info
+ *  @param[out] shared_image image shared with X11
+ *  @return true on success.
+ */
+bool init_xshm(logger *logger, Display *display,
+               unsigned int screen_width, unsigned int screen_height,
+               unsigned int xinerama_screen_number, XShmSegmentInfo *shminfo,
+               XImage **shared_image) {
+  int shm_minor, shm_major;
+  Bool pixmaps;
+  if (!XShmQueryVersion(display, &shm_minor, &shm_major, &pixmaps)) {
+    log_print(logger, LOG_ERROR, "Xshm is not supported.\n");
+    return false;
+  }
+
+  log_print(logger, LOG_INFO, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
+
+  int depth = DefaultDepth(display, xinerama_screen_number);
+  Visual *visual = DefaultVisual(display, xinerama_screen_number);
+  *shared_image = XShmCreateImage(display, visual, depth, ZPixmap, 0, shminfo, screen_width, screen_height);
+
+  if (!shared_image) {
+    log_print(logger, LOG_ERROR, "Cannot create shared image.\n");
+    return false;
+  }
+
+  shminfo->shmid = shmget(IPC_PRIVATE, (*shared_image)->bytes_per_line * (*shared_image)->height, IPC_CREAT|0777);
+
+  if (shminfo->shmid < 0) {
+    log_print(logger, LOG_ERROR, "Cannot get shmid: %s.\n", strerror(errno));
+    return false;
+  }
+
+  (*shared_image)->data = (char *)shmat(shminfo->shmid, 0, 0);
+  shminfo->shmaddr = (*shared_image)->data;
+  shminfo->readOnly = False;
+
+  if (!XShmAttach(display, shminfo)) {
+    log_print(logger, LOG_ERROR, "Cannot attach shared memory segment.\n");
+    return false;
+  }
+  XSync(display, False);
+
+  return true;
+}
 
 int main(int argc, char **argv) {
   char* program = *(argv++);
@@ -62,7 +290,7 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd == -1) {
-    ERROR_ERNO(&logger);
+    ERROR_ERRNO(&logger);
   }
 
   struct sockaddr_in addr = {
@@ -78,11 +306,11 @@ int main(int argc, char **argv) {
   if (opts->brake) {
     log_print(&logger, LOG_INFO, "Connecting to process.\n");
     if(connect(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
-      ERROR_ERNO(&logger);
+      ERROR_ERRNO(&logger);
     }
     int bytes_sent = write(socket_fd, stop_command, STOP_COMMAND_SIZE);
     if (bytes_sent < 0) {
-      ERROR_ERNO(&logger);
+      ERROR_ERRNO(&logger);
     }
     log_print(&logger, LOG_INFO, "Exiting.\n");
     log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
@@ -92,17 +320,17 @@ int main(int argc, char **argv) {
 
   log_print(&logger, LOG_INFO, "Setting socket to reuse address.\n");
   if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-    ERROR_ERNO(&logger);
+    ERROR_ERRNO(&logger);
   }
 
   log_print(&logger, LOG_INFO, "Binding address.\n");
   if(bind(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
-    ERROR_ERNO(&logger);
+    ERROR_ERRNO(&logger);
   }
 
   log_print(&logger, LOG_INFO, "Listening socket.\n");
   if (listen(socket_fd, 10) < 0) {
-    ERROR_ERNO(&logger);
+    ERROR_ERRNO(&logger);
   }
 
   bool is_stopped = false;
@@ -115,99 +343,34 @@ int main(int argc, char **argv) {
   pthread_mutex_init(&lock, 0);
   atomic_store(&running_flag, 1);
 
-
   // Initialise X11
 
   log_print(&logger, LOG_INFO, "Opening X11 display.\n");
   Display *display = XOpenDisplay(0);
-
-  // Initialise Xinerama
-  
-  int xinerama_minor, xinerama_major;
-  if (!XineramaQueryExtension(display, &xinerama_minor, &xinerama_major)) {
-    log_print(&logger, LOG_ERROR, "Xinerama is not supported.\n");
-    close(socket_fd);
-    return 1;
-  }
-  if (!XineramaIsActive(display)) {
-    log_print(&logger, LOG_ERROR, "Xinerama is not active.\n");
-    close(socket_fd);
-    return 1;
-  }
-
-  log_print(&logger, LOG_INFO, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
-
-  int num_screens = 0;
-  log_print(&logger, LOG_INFO, "Getting existing screens.\n");
-  XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
   Window root = DefaultRootWindow(display);
-  if (opts->screen_number > num_screens - 1) {
-    log_print(&logger, LOG_ERROR, "Invalid screen number.\n");
+
+  if (!init_xinerama(&logger, display)) {
     close(socket_fd);
     return 1;
-  }
-  
-  XineramaScreenInfo screen_info = screens[opts->screen_number];
-  short screen_x = screen_info.x_org;
-  short screen_y = screen_info.y_org;
-  short screen_width = screen_info.width;
-  short screen_height = screen_info.height;
-  log_print(&logger, LOG_INFO, "Screen x: %d, y: %d, width: %d, height: %d.\n", screen_x, screen_y, screen_width, screen_height);
-
-  // Initialise Xshm
-
-  int shm_minor, shm_major;
-  Bool pixmaps;
-  if (!XShmQueryVersion(display, &shm_minor, &shm_major, &pixmaps)) {
-    log_print(&logger, LOG_ERROR, "Xshm is not supported.\n");
-    close(socket_fd);
-    return 1;
-  }
-
-  log_print(&logger, LOG_INFO, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
-
-  int depth = DefaultDepth(display, screen_info.screen_number);
-  Visual *visual = DefaultVisual(display, screen_info.screen_number);
-  XShmSegmentInfo shminfo;
-  XImage *shared_image = XShmCreateImage(display, visual, depth, ZPixmap, /*char *data */ 0, &shminfo, screen_width, screen_height);
-
-  if (!shared_image) {
-    log_print(&logger, LOG_ERROR, "Cannot create shared image.\n");
-    close(socket_fd);
-    return 1;
-  }
-
-  shminfo.shmid = shmget(IPC_PRIVATE, shared_image->bytes_per_line * shared_image->height, IPC_CREAT|0777);
-
-  if (shminfo.shmid < 0) {
-    log_print(&logger, LOG_ERROR, "Cannot get shmid: %s.\n", strerror(errno));
-    close(socket_fd);
-    return 1;
-  }
-
-  shared_image->data = (char *)shmat(shminfo.shmid, 0, 0);
-  shminfo.shmaddr = shared_image->data;
-  shminfo.readOnly = False;
-
-  if (!XShmAttach(display, &shminfo)) {
-    log_print(&logger, LOG_ERROR, "Cannot attach shared memory segment.\n");
-    close(socket_fd);
-    return 1;
-  }
-  XSync(display, False);
-
-  video_capturing_params video_params = {
-    .display = display,
-    .window = root,
-    .shared_image = shared_image,
-    .screen_x = screen_x,
-    .screen_y = screen_y,
-    .framerate = opts->fps,
-    .logger = &logger,
   };
+
+  short screen_x, screen_y, screen_width, screen_height;
+  unsigned int xinerama_screen_number;
+  if (!get_screen_data(&logger, display, opts->screen_number, &screen_x, &screen_y, &screen_width, &screen_height, &xinerama_screen_number)) {
+    close(socket_fd);
+    return 1;
+  };
+
+  XShmSegmentInfo shminfo;
+  XImage *shared_image = NULL;
+  if (!init_xshm(&logger, display, screen_width, screen_height, xinerama_screen_number, &shminfo, &shared_image)) {
+    close(socket_fd);
+    return 1;
+  }
 
   // Initialise ring buffers.
 
+  circular_array video_ring_buffer;
   circular_array desktop_audio_ring_buffer;
   circular_array mic_audio_ring_buffer;
 
@@ -217,29 +380,33 @@ int main(int argc, char **argv) {
   circular_array_init(&desktop_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
   circular_array_init(&mic_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
+  video_capturing_params video_params = {
+    .display = display,
+    .window = root,
+    .shared_image = shared_image,
+    .screen_x = screen_x,
+    .screen_y = screen_y,
+    .framerate = opts->fps,
+    .logger = &logger,
+    .ring_buffer = video_ring_buffer,
+  };
+
   // Initialise pulseaudio
   log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
 
   pa_threaded_mainloop *ml = pa_threaded_mainloop_new();
   pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(ml);
 
-  size_t desktop_buffer_index = 0;
-  size_t mic_buffer_index = 0;
-
   stream_info desktop_stream = {
       .monitor = opts->desktop_sound_monitor,
       .name = "Desktop Audio",
       .ring_buffer = desktop_audio_ring_buffer,
-      .stream = NULL,
-      .buffer_index = &desktop_buffer_index,
   };
 
   stream_info mic_stream = {
       .monitor = opts->mic_sound_monitor,
       .name = "Mic/Aux",
       .ring_buffer = mic_audio_ring_buffer,
-      .stream = NULL,
-      .buffer_index = &mic_buffer_index,
   };
 
   audio_capturing_params audio_params = {
@@ -263,9 +430,7 @@ int main(int argc, char **argv) {
     .port = (char *)malloc(sizeof(char) * 8)
   };
   snprintf(temp_sender_params.port, 8, "%d", opts->port);
-#endif
 
-#ifndef DISABLE_SENDER
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
   pthread_create(&sender_thread, 0, thread_send_temp_files, (void *)&temp_sender_params);
 #endif
@@ -273,135 +438,47 @@ int main(int argc, char **argv) {
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pa_threaded_mainloop_start(ml);
-  //pthread_create(&audio_thread, 0, thread_audio_capturing, (void *)&audio_params);
 
   int client_fd;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
     if((client_fd = accept(socket_fd, (struct sockaddr *)&addr, &addrlen)) < 0) {
-      ERROR_ERNO(&logger);
+      ERROR_ERRNO(&logger);
     }
     if (read(client_fd, socket_buffer, SOCKET_BUFFER_SIZE) < 0) {
-      ERROR_ERNO(&logger);
+      ERROR_ERRNO(&logger);
     }
+
     log_print(&logger, LOG_INFO, "Received message.\n");
+
     if (memcmp(socket_buffer, stop_command, SOCKET_BUFFER_SIZE) == 0) {
       log_print(&logger, LOG_INFO, "Stopping recording\n");
       is_stopped = true;
+
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
       pa_threaded_mainloop_stop(ml);
 
-      // Free PA streams
-      if (audio_params.desktop_stream->stream != NULL) {
-        pa_stream_disconnect(audio_params.desktop_stream->stream);
-        pa_stream_unref(audio_params.desktop_stream->stream);
-        audio_params.desktop_stream->stream = NULL;
-      }
-
-      if (audio_params.mic_stream->stream != NULL) {
-        pa_stream_disconnect(audio_params.mic_stream->stream);
-        pa_stream_unref(audio_params.mic_stream->stream);
-        audio_params.mic_stream->stream = NULL;
-      }
-
-      // Free PA context.
-      pa_context_disconnect(audio_context);
-      pa_context_unref(audio_context);
-      audio_context = NULL;
-
-      // Free PA mainloop
-      pa_threaded_mainloop_free(ml);
-      ml = NULL;
-
       // Create tmp directory.
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
-      
-      // ffmpeg
 
-      uint8_t *audio;
-
-      // Desktop sound file
-      char desktop_sound_filename[256];
-      snprintf(desktop_sound_filename, 256, "%s/desktop.aac", temp_directory);
-
-      ffmpeg *desktop_sound = ffmpeg_init_sound(desktop_sound_filename);
-
-      size_t audio_start;
-      if (*audio_params.desktop_stream->buffer_index < (size_t)(opts->fps * opts->length)) audio_start = 0;
-      else audio_start = *audio_params.desktop_stream->buffer_index - opts->fps * opts->length;
-
-      log_print(&logger, LOG_INFO, "Flushing sound into %s\n", desktop_sound_filename);
-      for (size_t i = audio_start; i < *audio_params.desktop_stream->buffer_index; ++i) {
-        audio = circular_array_get(&audio_params.desktop_stream->ring_buffer, i);
-        ffmpeg_push_frame(desktop_sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-      }
-      ffmpeg_close(desktop_sound);
-
-      // Mic sound file
-      char mic_sound_filename[256];
-      if (opts->mic_sound_monitor != NULL) {
-        snprintf(mic_sound_filename, 256, "%s/mic.aac", temp_directory);
-
-        ffmpeg *mic_sound = ffmpeg_init_sound(mic_sound_filename);
-
-        if (*audio_params.mic_stream->buffer_index < (size_t)(opts->fps * opts->length)) audio_start = 0;
-        else audio_start = *audio_params.mic_stream->buffer_index - opts->fps * opts->length;
-
-        log_print(&logger, LOG_INFO, "Flushing sound into %s\n", mic_sound_filename);
-        for (size_t i = audio_start; i < *audio_params.mic_stream->buffer_index;
-            ++i) {
-          audio = circular_array_get(&audio_params.mic_stream->ring_buffer, i);
-          ffmpeg_push_frame(mic_sound, audio,
-                            SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-        }
-        ffmpeg_close(mic_sound);
-      }
-
-      // Video file
-      char video_filename[256] = {0};
-      if (opts->locally) snprintf(video_filename, sizeof(video_filename), "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
-      else snprintf(video_filename, sizeof(video_filename), "%s/%s.mp4", temp_directory, log_get_time());
-
-      uint32_t *frame;
-
-      char *sound_files[SOUND_FILES_CAPACITY];
-      unsigned int sound_files_amount = 0;
-      if (opts->mic_sound_monitor != NULL) {
-        sound_files[0] = desktop_sound_filename;
-        sound_files[1] = mic_sound_filename;
-        sound_files_amount = 2;
-      } else {
-        sound_files[0] = desktop_sound_filename;
-        sound_files[1] = NULL;
-        sound_files_amount = 1;
-      }
-
-      ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, sound_files_amount, sound_files);
-      int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
-      if (video_start < 0) video_start = 0;
-
-      log_print(&logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-      for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
-        frame = circular_array_get(&video_ring_buffer, i);
-        ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
-      }
-
-      ffmpeg_close(video);
+      char *video_filepath = render_video(&logger, temp_directory, opts, &audio_params, video_ring_buffer, screen_width, screen_height);
 
 #ifndef DISABLE_SENDER
       if (!opts->locally) {
         log_print(&logger, LOG_INFO, "Trying to send video.\n");
-        if (send_video(logger, opts->address, port, video_filename) == -1)
+        if (send_video(logger, opts->address, port, video_filepath) == -1)
           log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
       }
       else {
-        log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filename);
+        log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filepath);
       }
 #else
-      log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filename);
+      log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filepath);
 #endif
+
+      free(video_filepath);
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);
@@ -413,8 +490,15 @@ int main(int argc, char **argv) {
   pthread_mutex_destroy(&lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");
-  log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+  log_print(&logger, LOG_INFO, "Log file saved as %s\n", logger.filename);
   log_close(&logger);
+
+  // Freeing ring buffers
+  circular_array_free(&video_ring_buffer);
+  circular_array_free(&desktop_audio_ring_buffer);
+  circular_array_free(&mic_audio_ring_buffer);
+
+  free_pa(desktop_stream.stream, mic_stream.stream, audio_context, ml);
 
   // Closing
   XShmDetach(display, &shminfo);

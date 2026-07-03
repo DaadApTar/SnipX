@@ -11,11 +11,9 @@
 #include <X11/extensions/XShm.h>
 #include "log.h"
 
-pthread_mutex_t lock;
-circular_array video_ring_buffer;
 atomic_bool running_flag;
-atomic_int frame_counter;
-atomic_int video_frame_counter, audio_frame_counter;
+pthread_mutex_t lock;
+atomic_int video_frame_counter;
 
 void *thread_video_capturing(void *arg) {
   video_capturing_params *params = (video_capturing_params *)arg;
@@ -29,7 +27,7 @@ void *thread_video_capturing(void *arg) {
       log_print(params->logger, LOG_ERROR, "Cannot get image.\n");
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(&video_ring_buffer, params->shared_image->data, i);
+    circular_array_push(&params->ring_buffer, params->shared_image->data, i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
