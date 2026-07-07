@@ -24,6 +24,7 @@ typedef enum {
   LOCALLY,
 #endif
   HELP,
+  SOURCES,
 
   OPTION_TYPE_LENGTH
 } option_type;
@@ -47,8 +48,8 @@ typedef struct {
   int screen_number;
   int window;
   int fps;
-  char *desktop_sound_monitor;
-  char *mic_sound_monitor;
+  int desktop_sound_monitor;
+  int mic_sound_monitor;
   bool brake;
   bool help;
   int port;
@@ -56,23 +57,32 @@ typedef struct {
   char *address;
   bool locally;
   long bitrate;
+  bool sources;
 } options;
 
 static flag available_flags[] = {
-  {"screen",       's', "Screen to record.", SCREEN_NUMBER, /*WINDOW,*/ .priority = 1},
-  //{"window",       'w', "Window to record.", WINDOW, SCREEN_NUMBER, .priority = 0},
-  {"fps",          'f', "Framerate.", FPS,                          .priority = 0},
-  {"desktop",      'd', "Desktop sound monitor to record.", DESKTOP_SOUND_MONITOR,  .priority = 0},
-  {"mic",      'm', "Mic sound monitor to record. Note: unless this flag is set explicitly, mic won't be recorded.", MIC_SOUND_MONITOR,  .priority = 0},
-  {"length",       'l', "Length of the video in seconds.", LENGTH,  .priority = 0},
-  {"bitrate",        0, "Video bitrate.", BITRATE,                  .priority = 0},
-  {"brake",        'b', "Brake the recording.", BRAKE,              .priority = 2},
+    {"screen", 's', "Screen to record.", SCREEN_NUMBER,
+     /*WINDOW,*/ .priority = 1},
+    //{"window",       'w', "Window to record.", WINDOW, SCREEN_NUMBER,
+    //.priority = 0},
+    {"fps", 'f', "Framerate.", FPS, .priority = 0},
+    {"desktop", 'd', "Desktop sound monitor to record.", DESKTOP_SOUND_MONITOR,
+     .priority = 0},
+    {"mic", 'm',
+     "Mic sound monitor to record. Note: unless this flag is set explicitly, "
+     "mic won't be recorded.",
+     MIC_SOUND_MONITOR, .priority = 0},
+    {"length", 'l', "Length of the video in seconds.", LENGTH, .priority = 0},
+    {"bitrate", 0, "Video bitrate.", BITRATE, .priority = 0},
+    {"brake", 'b', "Brake the recording.", BRAKE, .priority = 2},
 #ifndef DISABLE_SENDER
-  {"address",      'a', "Server IP-address", ADDRESS,               .priority = 0},
-  {"port",         'p', "Server port", PORT,                        .priority = 0},
-  {"local",          0, "Save clip locally.", LOCALLY,                        .priority = 0},
+    {"address", 'a', "Server IP-address", ADDRESS, .priority = 0},
+    {"port", 'p', "Server port", PORT, .priority = 0},
+    {"local", 0, "Save clip locally.", LOCALLY, .priority = 0},
 #endif
-  {"help",         'h', "Print this message", HELP,                 .priority = 0},
+    {"sources", 0, "Print available sources to record audio", SOURCES,
+     .priority = 0},
+    {"help", 'h', "Print this message", HELP, .priority = 0},
 };
 
 static_assert(sizeof(available_flags) / sizeof(flag) == OPTION_TYPE_LENGTH - 1, "Not all options are set in flags.");

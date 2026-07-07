@@ -44,7 +44,7 @@
 #define STOP_COMMAND {0xFA, 0xDE}
 #define STOP_COMMAND_SIZE 2
 
-#define SOUND_FILES_CAPACITY 2
+#define SOUND_FILES_CAPACITY 8
 #define PATH_CAPACITY 4096
 
 /** @brief renders sound from ring buffer to file in AAC format.
@@ -136,22 +136,14 @@ char *render_video(logger *logger, char *temp_directory,
 
     char *sound_files[SOUND_FILES_CAPACITY] = {0};
 
-    // Desktop sound
-    char desktop_audio_filename[PATH_CAPACITY];
-    snprintf(desktop_audio_filename, sizeof(desktop_audio_filename), "%s/desktop.aac", temp_directory);
-    render_sound(logger, audio_params->desktop_stream->buffer_index,
-                  &audio_params->desktop_stream->ring_buffer, opts->fps,
-                  opts->length, desktop_audio_filename);
-    sound_files[0] = desktop_audio_filename;
-
-    // Mic sound
-    char mic_audio_filename[PATH_CAPACITY];
-    if (opts->mic_sound_monitor != NULL) {
-      snprintf(mic_audio_filename, sizeof(mic_audio_filename), "%s/mic.aac", temp_directory);
-      render_sound(logger, audio_params->mic_stream->buffer_index,
-                    &audio_params->mic_stream->ring_buffer, opts->fps,
-                    opts->length, mic_audio_filename);
-      sound_files[1] = mic_audio_filename;
+    size_t sound_files_index = 0;
+    for (size_t i = 0; i < audio_params->streams_length; ++i) {
+      char audio_filename[PATH_CAPACITY];
+      snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
+      render_sound(logger, audio_params->streams[i]->buffer_index,
+                    &audio_params->streams[i]->ring_buffer, opts->fps,
+                    opts->length, audio_filename);
+      sound_files[sound_files_index++] = strdup(audio_filename);
     }
 
     // Video file
@@ -161,7 +153,6 @@ char *render_video(logger *logger, char *temp_directory,
     else snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", temp_directory, log_get_time());
 #else
     snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
-    log_print(logger, LOG_INFO, "DEBUG: %s\n", video_filename);
 #endif
 
     uint32_t *frame;
@@ -267,6 +258,16 @@ bool init_xshm(logger *logger, Display *display,
   return true;
 }
 
+void init_pulseaudio(snipx_pa_state *state, pa_threaded_mainloop **ml, pa_context **context) {
+  *ml = pa_threaded_mainloop_new();
+  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(*ml);
+  pa_threaded_mainloop_lock(*ml);
+
+  *context = pa_context_new(pa_api, "SnipX");
+  pa_context_set_state_callback(*context, context_state_cb, (void*)state);
+  pa_context_connect(*context, NULL, 0, NULL);
+}
+
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -277,6 +278,25 @@ int main(int argc, char **argv) {
   }
   if (opts->help) {
     print_usage(program);
+    return 0;
+  }
+  if (opts->sources) {
+
+    snipx_pa_state state = {
+      .mode = MODE_LIST_SOURCES,
+    };
+
+    pa_threaded_mainloop *ml;
+    pa_context *context;
+    init_pulseaudio(&state, &ml, &context);
+
+    pa_threaded_mainloop_start(ml);
+    pa_threaded_mainloop_unlock(ml);
+
+    while (state.result != RESULT_OK);
+
+    free_pa(0, 0, context, ml);
+
     return 0;
   }
 
@@ -392,19 +412,16 @@ int main(int argc, char **argv) {
   };
 
   // Initialise pulseaudio
-  log_print(&logger, LOG_INFO, "Initialising PulseAudio.\n");
-
-  pa_threaded_mainloop *ml = pa_threaded_mainloop_new();
-  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(ml);
+  log_print(&logger, LOG_INFO, "Preparing PulseAudio.\n");
 
   stream_info desktop_stream = {
-      .monitor = opts->desktop_sound_monitor,
+      .index = opts->desktop_sound_monitor,
       .name = "Desktop Audio",
       .ring_buffer = desktop_audio_ring_buffer,
   };
 
   stream_info mic_stream = {
-      .monitor = opts->mic_sound_monitor,
+      .index = opts->mic_sound_monitor,
       .name = "Mic/Aux",
       .ring_buffer = mic_audio_ring_buffer,
   };
@@ -412,13 +429,20 @@ int main(int argc, char **argv) {
   audio_capturing_params audio_params = {
       .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
       .logger = &logger,
-      .desktop_stream = &desktop_stream,
-      .mic_stream = &mic_stream,
   };
 
-  pa_context *audio_context = pa_context_new(pa_api, "SnipX");
-  pa_context_set_state_callback(audio_context, context_state_cb, (void*)&audio_params);
-  pa_context_connect(audio_context, NULL, 0, NULL);
+  audio_params.streams[audio_params.streams_length++] = &desktop_stream;
+  if (opts->mic_sound_monitor != -1)
+    audio_params.streams[audio_params.streams_length++] = &mic_stream;
+
+  snipx_pa_state state = {
+    .mode = MODE_RECORD,
+    .recording_params = audio_params,
+  };
+
+  pa_threaded_mainloop *ml = NULL;
+  pa_context *audio_context = NULL;
+  init_pulseaudio(&state, &ml, &audio_context);
 
 #ifndef DISABLE_SENDER
   char port[8];
@@ -438,6 +462,14 @@ int main(int argc, char **argv) {
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pa_threaded_mainloop_start(ml);
+  pa_threaded_mainloop_unlock(ml);
+  // TODO: may cause desynchronization
+  while (state.result == RESULT_WAIT); // Waiting for mainloop to be started.
+  if (state.result == RESULT_ERR) {
+    log_print(&logger, LOG_ERROR,
+              "Could not start PulseAudio.\n");
+    goto free_app;
+  }
 
   int client_fd;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
@@ -487,6 +519,10 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_SENDER
   pthread_join(sender_thread, 0);
 #endif
+
+  // WARNING: high-quality code operation. Goto opponents should not read the code below
+free_app:
+
   pthread_mutex_destroy(&lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");

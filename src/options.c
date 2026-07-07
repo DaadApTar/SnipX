@@ -19,9 +19,9 @@ void print_usage(char *program) {
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
@@ -30,11 +30,12 @@ options *parse_flags(char **args, size_t size) {
   opts->help                  = false;
   opts->fps                   = 30;
   opts->screen_number         = 0;
-  opts->desktop_sound_monitor = 0;
-  opts->mic_sound_monitor     = 0;
+  opts->desktop_sound_monitor = -1;
+  opts->mic_sound_monitor     = -1;
   opts->port                  = 0;
   opts->bitrate               = 2500000;
   opts->length                = 10;
+  opts->sources               = false;
 #ifndef DISABLE_SENDER
   opts->locally               = false;
 #else
@@ -52,9 +53,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -64,10 +65,10 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
       opts->fps = atoi(args[i+1]);
       break;
     case DESKTOP_SOUND_MONITOR:
-      opts->desktop_sound_monitor = args[i+1];
+      opts->desktop_sound_monitor = atoi(args[i+1]);
       break;
     case MIC_SOUND_MONITOR:
-      opts->mic_sound_monitor = args[i+1];
+      opts->mic_sound_monitor = atoi(args[i+1]);
       break;
     case LENGTH:
       opts->length = atoi(args[i+1]);
@@ -92,6 +93,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
     case HELP:
       opts->help = true;
       break;
+    case SOURCES:
+      opts->sources = true;
+      break;
     default:
       free(opts);
       return 0;
@@ -103,17 +107,17 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 11, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 8, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
   [SCREEN_NUMBER] = NUMBER,
   /* [WINDOW] = NONE, */
   [FPS] = NUMBER,
-  [DESKTOP_SOUND_MONITOR] = STRING,
-  [MIC_SOUND_MONITOR] = STRING,
+  [DESKTOP_SOUND_MONITOR] = NUMBER,
+  [MIC_SOUND_MONITOR] = NUMBER,
   [BRAKE] = NONE,
   [LENGTH] = NUMBER,
   [BITRATE] = NUMBER,
@@ -123,6 +127,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [LOCALLY] = NONE,
 #endif
   [HELP] = NONE,
+  [SOURCES] = NONE,
 };
 
 value_type get_value_type(option_type option) {

@@ -30,18 +30,36 @@ Saving replay.
 ```console
 $ snipx -b
 ```
-## Setting sound monitors
-To record audio, you need to select the correct audio sources for your microphone and desktop audio. You can do this either by using the `--desktop` and `--mic` flags or by configuring them in `pavucontrol`.
+## Setting audio sources
+To record audio, select the correct sources for your microphone and desktop audio. You can either pass their indices using the `--desktop` and `--mic` flags or configure them in `pavucontrol`.
 
 If you don't specify a microphone source, microphone audio will not be recorded.
 
-To find the available sources from the command line, run:
+To list all available audio sources, run:
 
 ```sh
-$ pactl list sources short
+$ snipx --sources
 ```
 
-The output will contain source names such as `alsa_input...` (microphones) and `alsa_output...monitor` (desktop/system audio). Pass these names to the `--mic` and `--desktop` flags respectively.
+Example output:
+
+```text
+    64    Monitor of ROUTIST R2 Analog Surround 4.0
+    65    ROUTIST R2 Analog Surround 4.0
+    66    USB PnP Audio Device Mono
+    67    Monitor of Built-in Audio Digital Stereo (IEC958)
+    68    Built-in Audio Analog Stereo
+    127   Monitor of TU106 High Definition Audio Controller Digital Stereo (HDMI)
+    136   Monitor of Built-in Audio Digital Stereo (HDMI)
+```
+
+Sources whose names begin with **"Monitor of"** are desktop (system) audio sources, while the others are input devices such as microphones.
+
+Pass the corresponding indices to `--desktop` and `--mic`. For example:
+
+```sh
+$ snipx --desktop 64 --mic 66
+```
 ## Logging
 By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
 ## Env variables
@@ -58,6 +76,6 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Add capturing the screen via shared memory
 - [x] Replace simple pulseaudio API with stream API.
 - [x] Add support of second audio stream.
-- [ ] Add list of available sound monitors.
+- [x] Add list of available sound monitors.
 - [ ] Add polled render.
 - [ ] Add real-time video compression

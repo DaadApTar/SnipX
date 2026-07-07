@@ -17,6 +17,8 @@
 #define SNIPX_PA_BYTES_PER_SAMPLE 2
 #define SNIPX_PA_AUDIO_BYTES_PER_FRAME(framerate) ((SNIPX_PA_SAMPLE_RATE * SNIPX_PA_CHANNELS * SNIPX_PA_BYTES_PER_SAMPLE) / framerate)
 
+#define STREAMS_CAPACITY 8
+
 typedef struct {
   Display *display;
   Window window;
@@ -32,7 +34,7 @@ typedef struct {
  *  @note stream and buffer_index are set inside read callback.
  */
 typedef struct {
-  char *monitor;
+  unsigned int index;
   const char *name;
   circular_array ring_buffer;
   pa_stream *stream;
@@ -42,8 +44,8 @@ typedef struct {
 typedef struct {
   size_t fragsize;
   logger *logger;
-  stream_info *desktop_stream;
-  stream_info *mic_stream;
+  stream_info *streams[STREAMS_CAPACITY];
+  size_t streams_length;
 } audio_capturing_params;
 
 extern atomic_bool     running_flag;
