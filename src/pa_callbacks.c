@@ -4,7 +4,7 @@
 #include "string.h"
 
 void read_cb(pa_stream *s, size_t nbytes, void *userdata) {
-  stream_info *info = (stream_info *)userdata;
+  audio_stream *info = (audio_stream *)userdata;
   /*
     NOTE: This block was intended to store samples timestamp.
     Whenever I encounter a video&audio desynchronization, I
@@ -64,9 +64,9 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
     printf("%-4c%-6d%s\n", ' ', i->index, i->description);
   }; break;
   case MODE_RECORD: {
-    for (size_t iterator = 0; iterator < state->recording_params.streams_length && state->recording_params.streams[iterator]; ++iterator) {
-      if (state->recording_params.streams[iterator]->stream) continue;
-      if (state->recording_params.streams[iterator]->index == i->index) {
+    for (size_t iterator = 0; iterator < state->capture.length && state->capture.streams[iterator]; ++iterator) {
+      if (state->capture.streams[iterator]->stream) continue;
+      if (state->capture.streams[iterator]->index == i->index) {
 
         pa_sample_spec ss = {
           .format = PA_SAMPLE_S16LE,
@@ -75,13 +75,13 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
         };
         pa_buffer_attr attr = {
             .maxlength = (uint32_t)-1,
-            .fragsize = state->recording_params.fragsize,
+            .fragsize = state->capture.fragsize,
             .tlength = (uint32_t)-1,
             .minreq = (uint32_t)-1,
             .prebuf = (uint32_t)-1,
 
         };
-        stream_info *info = state->recording_params.streams[iterator];
+        audio_stream *info = state->capture.streams[iterator];
         info->stream = pa_stream_new(c, info->name, &ss, NULL);
         pa_stream_set_read_callback(info->stream, read_cb,
                                     (void *)info);

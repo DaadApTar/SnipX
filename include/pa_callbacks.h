@@ -19,7 +19,7 @@ typedef enum {
 
 typedef struct {
   snipx_pa_mode mode;
-  audio_capturing_params recording_params;
+  audio_capture capture;
   snipx_pa_state_result result;
   pa_threaded_mainloop *ml;
 } snipx_pa_state;

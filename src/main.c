@@ -12,8 +12,6 @@
 #include "log.h"
 #include <unistd.h>
 #include <pthread.h>
-#include <pulse/simple.h>
-#include <pulse/pulseaudio.h>
 #include <X11/X.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xinerama.h>
@@ -24,7 +22,7 @@
 #include "directory_manager.h"
 #include "defaults.h"
 #include "sender.h"
-#include "pa_callbacks.h"
+#include "pulseaudio.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -73,30 +71,6 @@ void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buff
       ffmpeg_close(sound);
 }
 
-void free_pa(pa_stream *desktop_stream, pa_stream *mic_stream, pa_context *context, pa_threaded_mainloop *ml) {
-      // Free PA streams
-      if (desktop_stream != NULL) {
-        pa_stream_disconnect(desktop_stream);
-        pa_stream_unref(desktop_stream);
-        desktop_stream = NULL;
-      }
-
-      if (mic_stream != NULL) {
-        pa_stream_disconnect(mic_stream);
-        pa_stream_unref(mic_stream);
-        mic_stream = NULL;
-      }
-
-      // Free PA context.
-      pa_context_disconnect(context);
-      pa_context_unref(context);
-      context = NULL;
-
-      // Free PA mainloop
-      pa_threaded_mainloop_free(ml);
-      ml = NULL;
-}
-
 /** @brief Initialises xinerama.
  *  @param[in] logger logger
  *  @param[in] display X11 display
@@ -129,7 +103,7 @@ bool init_xinerama(logger *logger, Display *display) {
  *  @return path to video file.
  */
 char *render_video(logger *logger, char *temp_directory,
-                  options *opts, audio_capturing_params *audio_params,
+                  options *opts, audio_capture *audio_capture,
                   circular_array video_ring_buffer, unsigned int screen_width,
                   unsigned int screen_height) {
     // ffmpeg
@@ -137,11 +111,11 @@ char *render_video(logger *logger, char *temp_directory,
     char *sound_files[SOUND_FILES_CAPACITY] = {0};
 
     size_t sound_files_index = 0;
-    for (size_t i = 0; i < audio_params->streams_length; ++i) {
+    for (size_t i = 0; i < audio_capture->length; ++i) {
       char audio_filename[PATH_CAPACITY];
       snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
-      render_sound(logger, audio_params->streams[i]->buffer_index,
-                    &audio_params->streams[i]->ring_buffer, opts->fps,
+      render_sound(logger, audio_capture->streams[i]->buffer_index,
+                    &audio_capture->streams[i]->ring_buffer, opts->fps,
                     opts->length, audio_filename);
       sound_files[sound_files_index++] = strdup(audio_filename);
     }
@@ -258,18 +232,6 @@ bool init_xshm(logger *logger, Display *display,
   return true;
 }
 
-void init_pulseaudio(snipx_pa_state *state, pa_threaded_mainloop **ml, pa_context **context) {
-  *ml = pa_threaded_mainloop_new();
-  pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(*ml);
-  pa_threaded_mainloop_lock(*ml);
-
-  state->ml = *ml;
-
-  *context = pa_context_new(pa_api, "SnipX");
-  pa_context_set_state_callback(*context, context_state_cb, (void*)state);
-  pa_context_connect(*context, NULL, 0, NULL);
-}
-
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -288,18 +250,13 @@ int main(int argc, char **argv) {
       .mode = MODE_LIST_SOURCES,
     };
 
-    pa_threaded_mainloop *ml;
-    pa_context *context;
-    init_pulseaudio(&state, &ml, &context);
+    snipx_pulseaudio pa;
 
-    pa_threaded_mainloop_start(ml);
-    pa_threaded_mainloop_unlock(ml);
+    prepare_pulseaudio(&pa, state);
 
-    while (state.result != RESULT_OK) {
-      pa_threaded_mainloop_wait(ml);
-    }
+    start_pulseaudio(&pa);
 
-    free_pa(0, 0, context, ml);
+    free_pa(&pa);
 
     return 0;
   }
@@ -418,35 +375,34 @@ int main(int argc, char **argv) {
   // Initialise pulseaudio
   log_print(&logger, LOG_INFO, "Preparing PulseAudio.\n");
 
-  stream_info desktop_stream = {
+  audio_stream desktop_stream = {
       .index = opts->desktop_sound_monitor,
       .name = "Desktop Audio",
       .ring_buffer = desktop_audio_ring_buffer,
   };
 
-  stream_info mic_stream = {
+  audio_stream mic_stream = {
       .index = opts->mic_sound_monitor,
       .name = "Mic/Aux",
       .ring_buffer = mic_audio_ring_buffer,
   };
 
-  audio_capturing_params audio_params = {
+  audio_capture audio_capture = {
       .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
-      .logger = &logger,
   };
 
-  audio_params.streams[audio_params.streams_length++] = &desktop_stream;
+  audio_capture.streams[audio_capture.length++] = &desktop_stream;
   if (opts->mic_sound_monitor != -1)
-    audio_params.streams[audio_params.streams_length++] = &mic_stream;
+    audio_capture.streams[audio_capture.length++] = &mic_stream;
 
   snipx_pa_state state = {
     .mode = MODE_RECORD,
-    .recording_params = audio_params,
+    .capture = audio_capture,
   };
 
-  pa_threaded_mainloop *ml = NULL;
-  pa_context *audio_context = NULL;
-  init_pulseaudio(&state, &ml, &audio_context);
+  snipx_pulseaudio pa;
+
+  prepare_pulseaudio(&pa, state);
 
 #ifndef DISABLE_SENDER
   char port[8];
@@ -465,13 +421,7 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
-  pa_threaded_mainloop_start(ml);
-  pa_threaded_mainloop_unlock(ml);
-
-  // TODO: may cause desynchronization
-  while (state.result == RESULT_WAIT) {
-    pa_threaded_mainloop_wait(ml);
-  }
+  start_pulseaudio(&pa);
 
   if (state.result == RESULT_ERR) {
     log_print(&logger, LOG_ERROR,
@@ -497,13 +447,14 @@ int main(int argc, char **argv) {
 
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
-      pa_threaded_mainloop_stop(ml);
+
+      stop_pulseaudio(&pa);
 
       // Create tmp directory.
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
-      char *video_filepath = render_video(&logger, temp_directory, opts, &audio_params, video_ring_buffer, screen_width, screen_height);
+      char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
 
 #ifndef DISABLE_SENDER
       if (!opts->locally) {
@@ -542,7 +493,7 @@ free_app:
   circular_array_free(&desktop_audio_ring_buffer);
   circular_array_free(&mic_audio_ring_buffer);
 
-  free_pa(desktop_stream.stream, mic_stream.stream, audio_context, ml);
+  free_pa(&pa);
 
   // Closing
   XShmDetach(display, &shminfo);

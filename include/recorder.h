@@ -39,14 +39,14 @@ typedef struct {
   circular_array ring_buffer;
   pa_stream *stream;
   size_t buffer_index;
-} stream_info;
+} audio_stream;
 
 typedef struct {
   size_t fragsize;
-  logger *logger;
-  stream_info *streams[STREAMS_CAPACITY];
-  size_t streams_length;
-} audio_capturing_params;
+  audio_stream *streams[STREAMS_CAPACITY];
+  size_t length;
+  size_t capacity;
+} audio_capture;
 
 extern atomic_bool     running_flag;
 extern pthread_mutex_t lock;
