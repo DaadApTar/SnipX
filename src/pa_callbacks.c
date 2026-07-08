@@ -54,6 +54,7 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
   (void) c;
   snipx_pa_state *state = (snipx_pa_state *)userdata;
   if (eol || i == NULL) {
+    pa_threaded_mainloop_signal(state->ml, 0);
     state->result = RESULT_OK;
     return;
   };
@@ -64,7 +65,7 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
   }; break;
   case MODE_RECORD: {
     for (size_t iterator = 0; iterator < state->recording_params.streams_length && state->recording_params.streams[iterator]; ++iterator) {
-      if (state->recording_params.streams[iterator]->stream) continue;;
+      if (state->recording_params.streams[iterator]->stream) continue;
       if (state->recording_params.streams[iterator]->index == i->index) {
 
         pa_sample_spec ss = {

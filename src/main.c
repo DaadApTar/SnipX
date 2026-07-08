@@ -263,6 +263,8 @@ void init_pulseaudio(snipx_pa_state *state, pa_threaded_mainloop **ml, pa_contex
   pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(*ml);
   pa_threaded_mainloop_lock(*ml);
 
+  state->ml = *ml;
+
   *context = pa_context_new(pa_api, "SnipX");
   pa_context_set_state_callback(*context, context_state_cb, (void*)state);
   pa_context_connect(*context, NULL, 0, NULL);
@@ -293,7 +295,9 @@ int main(int argc, char **argv) {
     pa_threaded_mainloop_start(ml);
     pa_threaded_mainloop_unlock(ml);
 
-    while (state.result != RESULT_OK);
+    while (state.result != RESULT_OK) {
+      pa_threaded_mainloop_wait(ml);
+    }
 
     free_pa(0, 0, context, ml);
 
@@ -463,8 +467,12 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   pa_threaded_mainloop_start(ml);
   pa_threaded_mainloop_unlock(ml);
+
   // TODO: may cause desynchronization
-  while (state.result == RESULT_WAIT); // Waiting for mainloop to be started.
+  while (state.result == RESULT_WAIT) {
+    pa_threaded_mainloop_wait(ml);
+  }
+
   if (state.result == RESULT_ERR) {
     log_print(&logger, LOG_ERROR,
               "Could not start PulseAudio.\n");
