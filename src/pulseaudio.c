@@ -10,7 +10,12 @@ int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state) {
 
   pa->state.ml = pa->ml;
 
+  return 0;
+}
+
+int start_pulseaudio(snipx_pulseaudio *pa) {
   pa_threaded_mainloop_lock(pa->ml);
+  pa_threaded_mainloop_start(pa->ml);
 
   pa_mainloop_api *pa_api = pa_threaded_mainloop_get_api(pa->ml);
 
@@ -20,19 +25,14 @@ int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state) {
   if (pa_context_connect(pa->context, NULL, 0, NULL) < 0) {
     return -1;
   }
-  pa_threaded_mainloop_unlock(pa->ml);
-
-  return 0;
-}
-
-void start_pulseaudio(snipx_pulseaudio *pa) {
-  pa_threaded_mainloop_lock(pa->ml);
-  pa_threaded_mainloop_start(pa->ml);
 
   while (pa->state.result != RESULT_OK) {
     pa_threaded_mainloop_wait(pa->ml);
   }
+
   pa_threaded_mainloop_unlock(pa->ml);
+
+  return 0;
 }
 
 void stop_pulseaudio(snipx_pulseaudio *pa) {

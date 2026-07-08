@@ -21,8 +21,9 @@ int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state);
 
 /** @brief starts pulseaudio thread.
  *  @param[in] pa pulseaudio context
+ *  @return 0 on success, -1 on error.
  */
-void start_pulseaudio(snipx_pulseaudio *pa);
+int start_pulseaudio(snipx_pulseaudio *pa);
 
 /** @brief stop pulseaudio thread.
  *  @param[in] pa pulseaudio context

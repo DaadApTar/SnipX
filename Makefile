@@ -2,7 +2,7 @@
 CC ?= gcc
 CFLAGS = -Wall -Wextra -Iinclude -ggdb
 LDFLAGS ?=
-LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpulse -lpthread
+LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpthread
 
 SENDER ?= true
 

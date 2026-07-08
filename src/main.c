@@ -236,6 +236,9 @@ int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
 
+  logger logger;
+  log_init(&logger);
+
   if (opts == 0) {
     print_usage(program);
     return 1;
@@ -254,7 +257,10 @@ int main(int argc, char **argv) {
 
     prepare_pulseaudio(&pa, state);
 
-    start_pulseaudio(&pa);
+    if (start_pulseaudio(&pa) < 0) {
+      log_print(&logger, LOG_ERROR,
+                "Could not start PulseAudio.\n");
+    }
 
     free_pa(&pa);
 
@@ -264,9 +270,6 @@ int main(int argc, char **argv) {
   dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR));
   char default_snipx_tmp_dir[256];
   snprintf(default_snipx_tmp_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_TMP_DIR);
-
-  logger logger;
-  log_init(&logger);
 
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -421,7 +424,11 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
-  start_pulseaudio(&pa);
+  if (start_pulseaudio(&pa) < 0) {
+    log_print(&logger, LOG_ERROR,
+              "Could not start PulseAudio.\n");
+    goto free_app;
+  }
 
   if (state.result == RESULT_ERR) {
     log_print(&logger, LOG_ERROR,

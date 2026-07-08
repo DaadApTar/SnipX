@@ -41,6 +41,7 @@ void context_state_cb(pa_context *c, void *userdata) {
   case PA_CONTEXT_TERMINATED:
   case PA_CONTEXT_FAILED: {
     state->result = RESULT_ERR;
+    pa_threaded_mainloop_signal(state->ml, 0);
   }; break;
   case PA_CONTEXT_UNCONNECTED:
   case PA_CONTEXT_CONNECTING:
