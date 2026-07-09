@@ -77,5 +77,5 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Replace simple pulseaudio API with stream API.
 - [x] Add support of second audio stream.
 - [x] Add list of available sound monitors.
-- [ ] Add polled render.
+- [ ] Add deferred render.
 - [ ] Add real-time video compression

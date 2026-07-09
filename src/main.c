@@ -23,6 +23,7 @@
 #include "defaults.h"
 #include "sender.h"
 #include "pulseaudio.h"
+#include "deferred_render.h"
 #include <libnotify/notify.h>
 
 /** @brief Prints an error and exits with exit code 1.
@@ -44,7 +45,6 @@
 #define STOP_COMMAND_SIZE 2
 
 #define SOUND_FILES_CAPACITY 8
-#define PATH_CAPACITY 4096
 
 /** @brief renders sound from ring buffer to file in AAC format.
  *  @param[in] logger logger
@@ -55,21 +55,21 @@
  *  @param[in] file_path path to file to render.
  */
 void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
-      uint8_t *audio;
+  uint8_t *audio;
 
-      ffmpeg *sound = ffmpeg_init_sound(file_path);
+  ffmpeg *sound = ffmpeg_init_sound(file_path);
 
-      size_t audio_start;
-      if (buffer_index < (size_t)(fps * length)) audio_start = 0;
-      else audio_start = buffer_index - fps * length;
+  size_t audio_start;
+  if (buffer_index < (size_t)(fps * length)) audio_start = 0;
+  else audio_start = buffer_index - fps * length;
 
-      log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
-      for (size_t i = audio_start; i < buffer_index; ++i) {
-        audio = circular_array_get(ring_buffer, i);
-        ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps));
-      }
+  log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
+  for (size_t i = audio_start; i < buffer_index; ++i) {
+    audio = circular_array_get(ring_buffer, i);
+    ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps));
+  }
 
-      ffmpeg_close(sound);
+  ffmpeg_close(sound);
 }
 
 /** @brief Initialises xinerama.
@@ -107,44 +107,44 @@ char *render_video(logger *logger, char *temp_directory,
                   options *opts, audio_capture *audio_capture,
                   circular_array video_ring_buffer, unsigned int screen_width,
                   unsigned int screen_height) {
-    // ffmpeg
+  // ffmpeg
 
-    char *sound_files[SOUND_FILES_CAPACITY] = {0};
+  char *sound_files[SOUND_FILES_CAPACITY] = {0};
 
-    size_t sound_files_index = 0;
-    for (size_t i = 0; i < audio_capture->length; ++i) {
-      char audio_filename[PATH_CAPACITY];
-      snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
-      render_sound(logger, audio_capture->streams[i]->buffer_index,
-                    &audio_capture->streams[i]->ring_buffer, opts->fps,
-                    opts->length, audio_filename);
-      sound_files[sound_files_index++] = strdup(audio_filename);
-    }
+  size_t sound_files_index = 0;
+  for (size_t i = 0; i < audio_capture->length; ++i) {
+    char audio_filename[PATH_MAX];
+    snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
+    render_sound(logger, audio_capture->streams[i]->buffer_index,
+                  &audio_capture->streams[i]->ring_buffer, opts->fps,
+                  opts->length, audio_filename);
+    sound_files[sound_files_index++] = strdup(audio_filename);
+  }
 
-    // Video file
-    char *video_filename = (char*)malloc(PATH_CAPACITY);
+  // Video file
+  char *video_filename = (char*)malloc(PATH_MAX);
 #ifndef DISABLE_SENDER
-    if (opts->locally) snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
-    else snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", temp_directory, log_get_time());
+  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
-    snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
 #endif
 
-    uint32_t *frame;
+  uint32_t *frame;
 
-    ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
-    int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
-    if (video_start < 0) video_start = 0;
+  ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
+  int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
+  if (video_start < 0) video_start = 0;
 
-    log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-    for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
-      frame = circular_array_get(&video_ring_buffer, i);
-      ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
-    }
+  log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
+  for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
+    frame = circular_array_get(&video_ring_buffer, i);
+    ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
+  }
 
-    ffmpeg_close(video);
+  ffmpeg_close(video);
 
-    return video_filename;
+  return video_filename;
 }
 
 /** @brief Sets coordinates of selected screen.
