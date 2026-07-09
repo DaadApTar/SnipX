@@ -1,8 +1,8 @@
 # Compiler and flags
 CC ?= gcc
-CFLAGS = -Wall -Wextra -Iinclude -ggdb
+CFLAGS = -Wall -Wextra -Iinclude -ggdb -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/libpng16 -I/usr/include/gio-unix-2.0 -I/usr/lib64/libffi/include -pthread -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/libmount -I/usr/include/blkid
 LDFLAGS ?=
-LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpthread
+LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpthread -lnotify -lgdk_pixbuf-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0
 
 SENDER ?= true
 

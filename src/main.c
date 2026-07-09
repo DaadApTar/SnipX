@@ -23,6 +23,7 @@
 #include "defaults.h"
 #include "sender.h"
 #include "pulseaudio.h"
+#include <libnotify/notify.h>
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -238,6 +239,7 @@ int main(int argc, char **argv) {
 
   logger logger;
   log_init(&logger);
+  notify_init("SnipX");
 
   if (opts == 0) {
     print_usage(program);
@@ -461,6 +463,13 @@ int main(int argc, char **argv) {
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
+      NotifyNotification *notify;
+      notify = notify_notification_new("SnipX", "Rendering has started.", NULL);
+
+      notify_notification_show(notify, NULL);
+
+      g_object_unref(notify);
+
       char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
 
 #ifndef DISABLE_SENDER
@@ -507,5 +516,7 @@ free_app:
   XDestroyImage(shared_image);
   shmdt(shminfo.shmaddr);
   shmctl(shminfo.shmid, IPC_RMID, 0);
+
+  notify_uninit();
   return 0;
 }
