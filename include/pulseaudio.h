@@ -19,13 +19,18 @@ typedef struct {
  */
 int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state);
 
-/** @brief starts pulseaudio thread.
+/** @brief inits and starts pulseaudio thread.
  *  @param[in] pa pulseaudio context
  *  @return 0 on success, -1 on error.
  */
 int start_pulseaudio(snipx_pulseaudio *pa);
 
-/** @brief stop pulseaudio thread.
+/** @brief starts pulseaudio thread.
+ *  @param[in] pa pulseaudio context
+ */
+void proceed_pulseaudio(snipx_pulseaudio *pa);
+
+/** @brief starts pulseaudio thread.
  *  @param[in] pa pulseaudio context
  */
 void stop_pulseaudio(snipx_pulseaudio *pa);

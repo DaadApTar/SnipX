@@ -41,10 +41,19 @@
 
 #define DEFAULT_PORT 4226
 #define SOCKET_BUFFER_SIZE 2
-#define STOP_COMMAND {0xFA, 0xDE}
-#define STOP_COMMAND_SIZE 2
+#define STOP_COMMAND           0xF1FA
+#define IMMEDIATE_COMMAND      0xFADE
+#define DEFER_COMMAND          0xCAFE
+#define RENDER_COMMAND         0xFACE
+#define COMMAND_SIZE 2
+
+#define COMMAND_TO_BYTES(x) { \
+    (uint8_t)(x >> 8),        \
+    (uint8_t)(x & 0xFF),      \
+  }
 
 #define SOUND_FILES_CAPACITY 8
+#define DEFERRED_CLIPS_CAPACITY 256
 
 /** @brief renders sound from ring buffer to file in AAC format.
  *  @param[in] logger logger
@@ -127,7 +136,7 @@ char *render_video(logger *logger, char *temp_directory,
   if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
-  snprintf(video_filename, PATH_CAPACITY, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
 #endif
 
   uint32_t *frame;
@@ -141,6 +150,35 @@ char *render_video(logger *logger, char *temp_directory,
     frame = circular_array_get(&video_ring_buffer, i);
     ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
   }
+
+  ffmpeg_close(video);
+
+  return video_filename;
+}
+
+/** @brief Renders a video.
+ *  @param[in] logger logger
+ *  @param[in] temp_directory a directory to save temp files.
+ *  @param[in] opts program options.
+ *  @param[in] components deferred video info.
+ *  @param[in] screen_width width of recorded screen
+ *  @param[in] screen_height height of recorded screen
+ *  @return path to video file.
+ */
+char *render_deferred_video(logger *logger, char *temp_directory,
+                            options *opts, video_components components, unsigned int screen_width,
+                            unsigned int screen_height) {
+  char *video_filename = (char*)malloc(PATH_MAX);
+#ifndef DISABLE_SENDER
+  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
+#else
+  (void) temp_directory;
+  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+#endif
+
+  log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
+  ffmpeg *video = ffmpeg_render_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, components);
 
   ffmpeg_close(video);
 
@@ -233,6 +271,23 @@ bool init_xshm(logger *logger, Display *display,
   return true;
 }
 
+void send_command(logger *logger, int socket_fd, struct sockaddr_in addr, int addrlen, uint16_t command) {
+  log_print(logger, LOG_INFO, "Connecting to process.\n");
+
+  uint8_t command_bytes[] = {
+    (uint8_t)(command >> 8),
+    (uint8_t)(command & 0xFF),
+  };
+
+  if(connect(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
+    ERROR_ERRNO(logger);
+  }
+  int bytes_sent = write(socket_fd, command_bytes, COMMAND_SIZE);
+  if (bytes_sent < 0) {
+    ERROR_ERRNO(logger);
+  }
+}
+
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -286,21 +341,40 @@ int main(int argc, char **argv) {
   };
   socklen_t addrlen = sizeof(addr);
 
-  uint8_t stop_command[] = STOP_COMMAND;
-
-  // Brake is highest priority task
-  if (opts->brake) {
-    log_print(&logger, LOG_INFO, "Connecting to process.\n");
-    if(connect(socket_fd, (struct sockaddr *)&addr, addrlen) < 0) {
-      ERROR_ERRNO(&logger);
-    }
-    int bytes_sent = write(socket_fd, stop_command, STOP_COMMAND_SIZE);
-    if (bytes_sent < 0) {
-      ERROR_ERRNO(&logger);
-    }
+  if (opts->immediate) {
+    send_command(&logger, socket_fd, addr, addrlen, IMMEDIATE_COMMAND);
     log_print(&logger, LOG_INFO, "Exiting.\n");
     log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
     log_close(&logger);
+    close(socket_fd);
+
+    return 0;
+  }
+  if (opts->stop) {
+    send_command(&logger, socket_fd, addr, addrlen, STOP_COMMAND);
+    log_print(&logger, LOG_INFO, "Exiting.\n");
+    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+    log_close(&logger);
+    close(socket_fd);
+
+    return 0;
+  }
+  if (opts->defer) {
+    send_command(&logger, socket_fd, addr, addrlen, DEFER_COMMAND);
+    log_print(&logger, LOG_INFO, "Exiting.\n");
+    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+    log_close(&logger);
+    close(socket_fd);
+
+    return 0;
+  }
+  if (opts->render) {
+    send_command(&logger, socket_fd, addr, addrlen, RENDER_COMMAND);
+    log_print(&logger, LOG_INFO, "Exiting.\n");
+    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+    log_close(&logger);
+    close(socket_fd);
+
     return 0;
   }
 
@@ -361,7 +435,7 @@ int main(int argc, char **argv) {
   circular_array mic_audio_ring_buffer;
 
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  circular_array_init(&video_ring_buffer, opts->fps * opts->length, sizeof(uint32_t) * screen_width * screen_height);
+  circular_array_init(&video_ring_buffer, opts->fps * opts->length, shared_image->bytes_per_line * shared_image->height);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
   circular_array_init(&desktop_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
   circular_array_init(&mic_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
@@ -374,7 +448,7 @@ int main(int argc, char **argv) {
     .screen_y = screen_y,
     .framerate = opts->fps,
     .logger = &logger,
-    .ring_buffer = video_ring_buffer,
+    .ring_buffer = &video_ring_buffer,
   };
 
   // Initialise pulseaudio
@@ -439,6 +513,9 @@ int main(int argc, char **argv) {
   }
 
   int client_fd;
+
+  video_components deferred_clips[DEFERRED_CLIPS_CAPACITY] = {0};
+  size_t deferred_clips_amount = 0;
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
     if((client_fd = accept(socket_fd, (struct sockaddr *)&addr, &addrlen)) < 0) {
@@ -450,9 +527,20 @@ int main(int argc, char **argv) {
 
     log_print(&logger, LOG_INFO, "Received message.\n");
 
+    uint8_t stop_command[] = COMMAND_TO_BYTES(STOP_COMMAND);
+    uint8_t brake_command[] = COMMAND_TO_BYTES(IMMEDIATE_COMMAND);
+    uint8_t defer_command[] = COMMAND_TO_BYTES(DEFER_COMMAND);
+    uint8_t render_command[] = COMMAND_TO_BYTES(RENDER_COMMAND);
+
     if (memcmp(socket_buffer, stop_command, SOCKET_BUFFER_SIZE) == 0) {
-      log_print(&logger, LOG_INFO, "Stopping recording\n");
+      log_print(&logger, LOG_INFO, "Stopping recording.\n");
       is_stopped = true;
+
+      atomic_store(&running_flag, 0);
+      pthread_join(video_thread, 0);
+    }
+    if (memcmp(socket_buffer, brake_command, SOCKET_BUFFER_SIZE) == 0) {
+      log_print(&logger, LOG_INFO, "Starting immediate rendering.\n");
 
       atomic_store(&running_flag, 0);
       pthread_join(video_thread, 0);
@@ -486,6 +574,108 @@ int main(int argc, char **argv) {
 #endif
 
       free(video_filepath);
+      free(temp_directory);
+
+      atomic_store(&video_frame_counter, 0);
+
+      circular_array_clear(&video_ring_buffer);
+
+      for (size_t i = 0; i < audio_capture.length; ++i) {
+        circular_array_clear(&audio_capture.streams[i]->ring_buffer);
+        audio_capture.streams[i]->buffer_index = 0;
+      }
+      atomic_store(&running_flag, 1);
+      atomic_store(&video_frame_counter, 1);
+      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+
+      proceed_pulseaudio(&pa);
+    }
+    if (memcmp(socket_buffer, defer_command, SOCKET_BUFFER_SIZE) == 0) {
+      log_print(&logger, LOG_INFO, "Deferring clip.\n");
+      
+      atomic_store(&running_flag, 0);
+      pthread_join(video_thread, 0);
+
+      stop_pulseaudio(&pa);
+
+      // Create tmp directory.
+      char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
+      dir_create_if_not_exists(temp_directory);
+
+      if (deferred_clips_amount < DEFERRED_CLIPS_CAPACITY) {
+        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, atomic_load(&video_frame_counter), audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, &deferred_clips[deferred_clips_amount]);
+        pthread_t defer_video_thread;
+        pthread_create(&defer_video_thread, NULL, thread_defer_video, dva);
+        pthread_detach(defer_video_thread);
+        deferred_clips_amount++;
+
+        NotifyNotification *notify;
+        notify = notify_notification_new("SnipX", "Clip was deferred.", NULL);
+        notify_notification_show(notify, NULL);
+        g_object_unref(notify);
+      }
+      else {
+        log_print(&logger, LOG_WARNING, "Ran out of clips capacity.");
+
+        NotifyNotification *notify;
+        notify = notify_notification_new("SnipX", "Ran out of clips capacity.", NULL);
+        notify_notification_show(notify, NULL);
+        g_object_unref(notify);
+      }
+
+      free(temp_directory);
+
+      atomic_store(&video_frame_counter, 0);
+
+      circular_array_clear(&video_ring_buffer);
+
+      for (size_t i = 0; i < audio_capture.length; ++i) {
+        circular_array_clear(&audio_capture.streams[i]->ring_buffer);
+        audio_capture.streams[i]->buffer_index = 0;
+      }
+      atomic_store(&running_flag, 1);
+      atomic_store(&video_frame_counter, 1);
+      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+
+      proceed_pulseaudio(&pa);
+    }
+    if (memcmp(socket_buffer, render_command, SOCKET_BUFFER_SIZE) == 0) {
+      log_print(&logger, LOG_INFO, "Rendering %d clips.\n", deferred_clips_amount);
+
+      // Create tmp directory.
+      char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
+      dir_create_if_not_exists(temp_directory);
+
+      NotifyNotification *notify;
+      notify = notify_notification_new("SnipX", "Rendering has started.", NULL);
+
+      notify_notification_show(notify, NULL);
+
+      g_object_unref(notify);
+
+      for (size_t i = 0; i < DEFERRED_CLIPS_CAPACITY; ++i) {
+        if (deferred_clips[i].video_file == 0) continue;
+        char *video_filepath = render_deferred_video(&logger, temp_directory, opts, deferred_clips[i], screen_width, screen_height);
+
+#ifndef DISABLE_SENDER
+        if (!opts->locally) {
+          log_print(&logger, LOG_INFO, "Trying to send video.\n");
+          if (send_video(logger, opts->address, port, video_filepath) == -1)
+            log_print(&logger, LOG_ERROR, "%s\n", strerror(errno));
+        }
+        else {
+          log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filepath);
+        }
+#else
+        log_print(&logger, LOG_INFO, "Video file saved as %s\n", video_filepath);
+#endif
+
+        free(video_filepath);
+
+        delete_video_components(&deferred_clips[i]);
+        deferred_clips_amount--;
+      }
+      free(temp_directory);
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);
     close(client_fd);

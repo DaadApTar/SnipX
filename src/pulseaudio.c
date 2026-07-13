@@ -36,22 +36,46 @@ int start_pulseaudio(snipx_pulseaudio *pa) {
 }
 
 void stop_pulseaudio(snipx_pulseaudio *pa) {
-  pa_threaded_mainloop_stop(pa->ml);
+  pa_threaded_mainloop_lock(pa->ml);
+}
+
+void proceed_pulseaudio(snipx_pulseaudio *pa) {
+  for (size_t i = 0; i < pa->state.capture.length; ++i) {
+    pa_operation *op = pa_stream_flush(pa->state.capture.streams[i]->stream, flush_cb, (void *)pa->ml);
+    while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) pa_threaded_mainloop_wait(pa->ml);
+    pa_operation_unref(op);
+  }
+  pa_threaded_mainloop_unlock(pa->ml);
 }
 
 void free_pa(snipx_pulseaudio *pa) {
+  if (pa->ml) {
+    pa_threaded_mainloop_lock(pa->ml);
+  }
   for (size_t i = 0; i < pa->state.capture.length; ++i) {
-      pa_stream_disconnect(pa->state.capture.streams[i]->stream);
-      pa_stream_unref(pa->state.capture.streams[i]->stream);
+    pa_stream *s = pa->state.capture.streams[i]->stream;
+    if (s) {
+      pa_stream_set_state_callback(s, NULL, NULL);
+      pa_stream_set_read_callback(s, NULL, NULL);
+      pa_stream_disconnect(s);
+      pa_stream_unref(s);
       pa->state.capture.streams[i]->stream = NULL;
+    }
   }
 
   // Free PA context.
-  pa_context_disconnect(pa->context);
-  pa_context_unref(pa->context);
-  pa->context = NULL;
+
+  if (pa->context) {
+    pa_context_set_state_callback(pa->context, NULL, NULL);
+    pa_context_disconnect(pa->context);
+    pa_context_unref(pa->context);
+    pa->context = NULL;
+  }
 
   // Free PA mainloop
-  pa_threaded_mainloop_free(pa->ml);
-  pa->ml = NULL;
+  if (pa->ml) {
+    pa_threaded_mainloop_unlock(pa->ml);
+    pa_threaded_mainloop_free(pa->ml);
+    pa->ml = NULL;
+  }
 }

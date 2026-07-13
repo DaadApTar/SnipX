@@ -35,4 +35,9 @@ void context_state_cb(pa_context*, void* state);
 /** @brief Prints available sources. */
 void source_info_list_cb(pa_context *, const pa_source_info *, int, void *);
 
+/** @brief Flushes PA internal buffer
+ *  @param[in] ml threaded mainloop
+ */
+void flush_cb(pa_stream *, int, void *ml);
+
 #endif

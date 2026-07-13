@@ -65,7 +65,7 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
     printf("%-4c%-6d%s\n", ' ', i->index, i->description);
   }; break;
   case MODE_RECORD: {
-    for (size_t iterator = 0; iterator < state->capture.length && state->capture.streams[iterator]; ++iterator) {
+    for (size_t iterator = 0; iterator < state->capture.length; ++iterator) {
       if (state->capture.streams[iterator]->stream) continue;
       if (state->capture.streams[iterator]->index == i->index) {
 
@@ -97,4 +97,11 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
     }
   }; break;
   }
+}
+
+void flush_cb(pa_stream *s, int success, void *ml) {
+  (void) s;
+  (void) success;
+  pa_threaded_mainloop *m = (pa_threaded_mainloop *)ml;
+  pa_threaded_mainloop_signal(m, 0);
 }

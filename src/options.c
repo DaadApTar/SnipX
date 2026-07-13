@@ -19,14 +19,17 @@ void print_usage(char *program) {
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
-  opts->brake                 = false;
+  opts->stop                  = false;
+  opts->immediate             = false;
+  opts->defer                 = false;
+  opts->render                = false;
   opts->help                  = false;
   opts->fps                   = 30;
   opts->screen_number         = 0;
@@ -53,9 +56,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -76,8 +79,17 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
     case BITRATE:
       opts->bitrate = atoi(args[i+1]);
       break;
-    case BRAKE:
-      opts->brake = true;
+    case STOP:
+      opts->stop = true;
+      break;
+    case IMMEDIATE:
+      opts->immediate = true;
+      break;
+    case DEFER:
+      opts->defer = true;
+      break;
+    case RENDER:
+      opts->render = true;
       break;
 #ifndef DISABLE_SENDER
     case ADDRESS:
@@ -107,9 +119,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 9, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 12, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
@@ -118,7 +130,10 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [FPS] = NUMBER,
   [DESKTOP_SOUND_MONITOR] = NUMBER,
   [MIC_SOUND_MONITOR] = NUMBER,
-  [BRAKE] = NONE,
+  [STOP] = NONE,
+  [IMMEDIATE] = NONE,
+  [DEFER] = NONE,
+  [RENDER] = NONE,
   [LENGTH] = NUMBER,
   [BITRATE] = NUMBER,
 #ifndef DISABLE_SENDER

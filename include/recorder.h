@@ -27,7 +27,7 @@ typedef struct {
   int screen_y;
   int framerate;
   logger *logger;
-  circular_array ring_buffer;
+  circular_array *ring_buffer;
 } video_capturing_params;
 
 /** @brief PulseAudio stream info for reading.
