@@ -133,10 +133,10 @@ char *render_video(logger *logger, char *temp_directory,
   // Video file
   char *video_filename = (char*)malloc(PATH_MAX);
 #ifndef DISABLE_SENDER
-  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
-  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
 #endif
 
   uint32_t *frame;
@@ -170,11 +170,11 @@ char *render_deferred_video(logger *logger, char *temp_directory,
                             unsigned int screen_height) {
   char *video_filename = (char*)malloc(PATH_MAX);
 #ifndef DISABLE_SENDER
-  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
   (void) temp_directory;
-  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", dir_default_or_env("./", ENV_SNIPX_OUTPUT_DIR), log_get_time());
+  snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
 #endif
 
   log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);

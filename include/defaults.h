@@ -10,6 +10,4 @@
 #define DEFAULT_SNIPX_LOG_DIR "logs/"
 #define ENV_SNIPX_LOG_DIR "SNIPX_TMP_DIR"
 
-#define ENV_SNIPX_OUTPUT_DIR "SNIPX_OUT_DIR"
-
 #endif

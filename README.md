@@ -7,6 +7,9 @@ SnipX is an utility for recording instant replays on X11, sending and storing th
 - libXext
 - Go (for sending, [can be disabled](##Building))
 - PulseAudio
+- glib (yet)
+- libpixbuf (yet)
+- libnotify (yet)
 - A lot of free space in RAM (yet)
 ## Building
 ```console
@@ -66,7 +69,6 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - `SNIPX_DIR` - snipx temp and log directory.
 - `SNIPX_TMP_DIR` - snipx temp directory.
 - `SNIPX_LOG_DIR` - snipx log directory.
-- `SNIPX_OUT_DIR` - video output directory.
 ## TODO
 - [x] Add --help (-h) flag
 - [x] Add --length (-l) flag
@@ -78,4 +80,6 @@ By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be 
 - [x] Add support of second audio stream.
 - [x] Add list of available sound monitors.
 - [x] Add deferred render.
+- [x] Add output flag
 - [ ] Add real-time video compression
+- [ ] Port to wayland

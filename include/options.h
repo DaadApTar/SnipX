@@ -27,6 +27,7 @@ typedef enum {
   LOCALLY,
 #endif
   HELP,
+  OUTPUT,
   SOURCES,
 
   OPTION_TYPE_LENGTH
@@ -63,6 +64,7 @@ typedef struct {
   char *address;
   bool locally;
   long bitrate;
+  char *output;
   bool sources;
 } options;
 
@@ -91,6 +93,7 @@ static flag available_flags[] = {
 #endif
     {"sources", 0, "Print available sources to record audio.", SOURCES,
      .priority = 0},
+    {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
 };
 
