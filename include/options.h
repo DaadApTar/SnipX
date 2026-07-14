@@ -29,6 +29,7 @@ typedef enum {
   HELP,
   OUTPUT,
   SOURCES,
+  VERSION,
 
   OPTION_TYPE_LENGTH
 } option_type;
@@ -49,6 +50,9 @@ typedef struct {
 } flag;
 
 typedef struct {
+  /// It's used for flags that should stop program after execution like --stop.
+  bool close_after;
+
   int screen_number;
   int window;
   int fps;
@@ -66,6 +70,7 @@ typedef struct {
   long bitrate;
   char *output;
   bool sources;
+  bool version;
 } options;
 
 static flag available_flags[] = {
@@ -95,6 +100,7 @@ static flag available_flags[] = {
      .priority = 0},
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
+    {"version", 'v', "Print the version.", VERSION, .priority = 0},
 };
 
 static_assert(sizeof(available_flags) / sizeof(flag) == OPTION_TYPE_LENGTH - 1, "Not all options are set in flags.");
@@ -105,6 +111,10 @@ extern value_type value_types[OPTION_TYPE_LENGTH];
  *  @param[in] program Program name.
  */
 void print_usage(char *program);
+
+/** @brief Prints the version.
+ */
+void print_version();
 
 /** @brief Parses flags.
  *  @param[in] args Array of arguments

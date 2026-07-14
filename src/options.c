@@ -18,10 +18,32 @@ void print_usage(char *program) {
   printf("\n");
 }
 
-#ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+void print_version() {
+#if defined (APP_VERSION) && defined (GIT_COMMIT)
+  printf("snipx %s-%s\n", APP_VERSION, GIT_COMMIT);
+  printf("Compiler: ");
+  #if defined (__clang__)
+    printf("Clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
+  #elif defined (__GNUC__)
+    printf("GCC %d.%d.%d\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+  #else
+    printf("unknown compiler\n");
+  #endif
+  printf("Built: %s %s\n", __DATE__, __TIME__);
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
+  #if !defined(APP_VERSION)
+    #error APP_VERSION is not defined
+  #endif
+  #if !defined(GIT_COMMIT)
+    #error GIT_VERSION is not defined
+  #endif
+#endif
+}
+
+#ifndef DISABLE_SENDER
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
+#else
+static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
@@ -39,6 +61,7 @@ options *parse_flags(char **args, size_t size) {
   opts->bitrate               = 2500000;
   opts->length                = 10;
   opts->sources               = false;
+  opts->version               = false;
 #ifndef DISABLE_SENDER
   opts->locally               = false;
 #else
@@ -56,9 +79,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -81,15 +104,19 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
       break;
     case STOP:
       opts->stop = true;
+      opts->close_after = 1;
       break;
     case IMMEDIATE:
       opts->immediate = true;
+      opts->close_after = 1;
       break;
     case DEFER:
       opts->defer = true;
+      opts->close_after = 1;
       break;
     case RENDER:
       opts->render = true;
+      opts->close_after = 1;
       break;
 #ifndef DISABLE_SENDER
     case ADDRESS:
@@ -104,9 +131,15 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
 #endif
     case HELP:
       opts->help = true;
+      opts->close_after = 1;
       break;
     case SOURCES:
       opts->sources = true;
+      opts->close_after = 1;
+      break;
+    case VERSION:
+      opts->version = true;
+      opts->close_after = 1;
       break;
     case OUTPUT:
       opts->output = args[i+1];
@@ -122,9 +155,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 13, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
@@ -147,6 +180,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [HELP] = NONE,
   [OUTPUT] = STRING,
   [SOURCES] = NONE,
+  [VERSION] = NONE,
 };
 
 value_type get_value_type(option_type option) {

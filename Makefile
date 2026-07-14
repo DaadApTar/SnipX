@@ -1,12 +1,19 @@
 # Compiler and flags
+
 CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
 
 PKGS = glib-2.0 gio-2.0 gdk-pixbuf-2.0 libnotify
 
+VERSION := 0.0.0
+COMMIT := $(shell git rev-parse --short HEAD)
+
 CFLAGS := -Wall -Wextra -Iinclude -ggdb \
            $(shell $(PKG_CONFIG) --cflags $(PKGS))
+
+VERSION_FLAGS := -DAPP_VERSION=\"$(VERSION)\" \
+							   -DGIT_COMMIT=\"$(COMMIT)\"
 LDFLAGS ?=
 LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpthread \
            $(shell $(PKG_CONFIG) --libs $(PKGS))
@@ -53,7 +60,7 @@ all: $(TARGET) $(SENDER_TARGET)
 
 # Link final app
 $(TARGET): $(OBJ_FILES)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS) $(VERSION_FLAGS)
 	@echo "SENDER=$(SENDER)" > $(BUILD_CONFIG)
 
 $(SENDER_TARGET):
@@ -63,7 +70,7 @@ endif
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ $(VERSION_FLAGS)
 
 # Build directory
 $(BUILD_DIR):
@@ -78,11 +85,11 @@ test: $(TEST_BIN)
 
 # Link test binary
 $(TEST_BIN): $(TEST_OBJ)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS) $(VERSION_FLAGS)
 
 # Compile test files
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ $(VERSION_FLAGS)
 
 -include $(BUILD_CONFIG)
 

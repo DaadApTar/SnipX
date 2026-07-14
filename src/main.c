@@ -271,8 +271,21 @@ bool init_xshm(logger *logger, Display *display,
   return true;
 }
 
-void send_command(logger *logger, int socket_fd, struct sockaddr_in addr, int addrlen, uint16_t command) {
+void send_command(logger *logger, uint16_t command) {
   log_print(logger, LOG_INFO, "Connecting to process.\n");
+
+  int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (socket_fd == -1) {
+    ERROR_ERRNO(logger);
+  }
+
+  struct sockaddr_in addr = {
+    .sin_family        = AF_INET,
+    .sin_port          = htons(DEFAULT_PORT),
+    .sin_addr.s_addr   = htonl(INADDR_ANY)
+  };
+  socklen_t addrlen = sizeof(addr);
+
 
   uint8_t command_bytes[] = {
     (uint8_t)(command >> 8),
@@ -286,6 +299,8 @@ void send_command(logger *logger, int socket_fd, struct sockaddr_in addr, int ad
   if (bytes_sent < 0) {
     ERROR_ERRNO(logger);
   }
+
+  close(socket_fd);
 }
 
 int main(int argc, char **argv) {
@@ -302,6 +317,10 @@ int main(int argc, char **argv) {
   }
   if (opts->help) {
     print_usage(program);
+    return 0;
+  }
+  if (opts->version) {
+    print_version();
     return 0;
   }
   if (opts->sources) {
@@ -328,6 +347,18 @@ int main(int argc, char **argv) {
   char default_snipx_tmp_dir[256];
   snprintf(default_snipx_tmp_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_TMP_DIR);
 
+  if (opts->immediate) send_command(&logger, IMMEDIATE_COMMAND);
+  if (opts->stop) send_command(&logger, STOP_COMMAND);
+  if (opts->defer) send_command(&logger, DEFER_COMMAND);
+  if (opts->render) send_command(&logger, RENDER_COMMAND);
+
+  if (opts->close_after) {
+    log_print(&logger, LOG_INFO, "Exiting.\n");
+    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
+    log_close(&logger);
+    return 0;
+  }
+
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_fd == -1) {
@@ -340,43 +371,6 @@ int main(int argc, char **argv) {
     .sin_addr.s_addr   = htonl(INADDR_ANY)
   };
   socklen_t addrlen = sizeof(addr);
-
-  if (opts->immediate) {
-    send_command(&logger, socket_fd, addr, addrlen, IMMEDIATE_COMMAND);
-    log_print(&logger, LOG_INFO, "Exiting.\n");
-    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
-    log_close(&logger);
-    close(socket_fd);
-
-    return 0;
-  }
-  if (opts->stop) {
-    send_command(&logger, socket_fd, addr, addrlen, STOP_COMMAND);
-    log_print(&logger, LOG_INFO, "Exiting.\n");
-    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
-    log_close(&logger);
-    close(socket_fd);
-
-    return 0;
-  }
-  if (opts->defer) {
-    send_command(&logger, socket_fd, addr, addrlen, DEFER_COMMAND);
-    log_print(&logger, LOG_INFO, "Exiting.\n");
-    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
-    log_close(&logger);
-    close(socket_fd);
-
-    return 0;
-  }
-  if (opts->render) {
-    send_command(&logger, socket_fd, addr, addrlen, RENDER_COMMAND);
-    log_print(&logger, LOG_INFO, "Exiting.\n");
-    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
-    log_close(&logger);
-    close(socket_fd);
-
-    return 0;
-  }
 
   log_print(&logger, LOG_INFO, "Setting socket to reuse address.\n");
   if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
