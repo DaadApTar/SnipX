@@ -4,6 +4,7 @@
 #include "string.h"
 #include "stdbool.h"
 #include <unistd.h>
+#include <dirent.h>
 
 #define CHUNK_SIZE 1024*1024
 #define DELAY_US 10000
@@ -146,4 +147,40 @@ void free_video_components(video_components *components) {
   }
 
   *components = (video_components){0};
+}
+
+size_t load_deferred_files(char *path, video_components *components, size_t capacity) {
+  DIR *d;
+  struct dirent *file;
+  d = opendir(path);
+  if (d == 0) return -1;
+  size_t result = 0;
+  while ((file = readdir(d)) != 0) {
+    if (file->d_type == DT_REG && strstr(file->d_name, ".raw") != 0) {
+      char *group_end;
+      size_t group = strtoull(file->d_name, &group_end, 10);
+
+      if (file->d_name == group_end) continue;
+      if (group > capacity) continue;
+      if (group >= result) result = group+1;
+      if (strcmp(group_end, ".raw") == 0) {
+        char *filepath = malloc(PATH_MAX);
+        snprintf(filepath, PATH_MAX, "%s%s", path, file->d_name);
+        components[group].video_file = filepath;
+      }
+      else if (*group_end == '_') {
+        group_end++;
+        char *index_end;
+        size_t audio_index = strtoull(group_end, &index_end, 10);
+
+        if (strcmp(index_end, ".raw") == 0) {
+          char *filepath = malloc(PATH_MAX);
+          snprintf(filepath, PATH_MAX, "%s%s", path, file->d_name);
+          components[group].audio_files[audio_index] = filepath;
+          components[group].audio_files_length++;
+        }
+      }
+    }
+  }
+  return result;
 }

@@ -91,8 +91,8 @@ int send_temp_files(logger logger, char *address, char *port, char* path) {
   if (d == 0) return -1;
   while ((file = readdir(d)) != 0) {
     if (file->d_type == DT_REG && strstr(file->d_name, ".mp4") != 0) {
-      char filepath[256];
-      snprintf(filepath, 256, "%s%s", path, file->d_name);
+      char filepath[PATH_MAX];
+      snprintf(filepath, PATH_MAX, "%s%s", path, file->d_name);
       if (send_video(logger, address, port, filepath) == -1) return -1;
     }
   }

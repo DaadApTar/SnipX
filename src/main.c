@@ -516,8 +516,11 @@ int main(int argc, char **argv) {
 
   int client_fd;
 
+  char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
   video_components deferred_clips[DEFERRED_CLIPS_CAPACITY] = {0};
-  size_t deferred_clips_amount = 0;
+  size_t deferred_clips_amount = load_deferred_files(temp_directory, deferred_clips, DEFERRED_CLIPS_CAPACITY);
+  free(temp_directory);
+
   log_print(&logger, LOG_INFO, "Accepting from socket...\n");
   while (!is_stopped) {
     if((client_fd = accept(socket_fd, (struct sockaddr *)&addr, &addrlen)) < 0) {

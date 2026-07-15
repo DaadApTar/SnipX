@@ -72,4 +72,13 @@ int delete_video_components(video_components *components);
  */
 void free_video_components(video_components *components);
 
+
+/** @brief Loads forgotten deferred files into directory.
+ *  @param[in] path path to temp directory
+ *  @param[in] components pointer to array
+ *  @param[in] capacity array capacity
+ *  @return next free group index
+ */
+size_t load_deferred_files(char *path, video_components *components, size_t capacity);
+
 #endif
