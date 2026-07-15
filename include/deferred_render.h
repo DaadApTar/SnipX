@@ -20,9 +20,10 @@ typedef struct {
  *  @param[in] ring_buffer buffer to dump
  *  @param[in] buffer_index index of the *last* element
  *  @param[in] path path to write into
+ *  @param[in] mbps speed limit of dumping
  *  @return 0 on success, -1 on error.
  */
-int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path);
+int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path, size_t mbps);
 
 /** @brief packs files.
  *  @param[in] video_buffer video ring buffer
@@ -30,9 +31,10 @@ int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path
  *  @param[in] capture audio streams
  *  @param[in] temp_directory directory to save files
  *  @param[in] group id of group to store
+ *  @param[in] mbps speed limit of dumping
  *  @return packed video components.
  */
-video_components defer_video(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t stream_length, char *temp_directory, size_t group);
+video_components defer_video(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t stream_length, char *temp_directory, size_t group, size_t mbps);
 
 typedef struct {
   circular_array *video_buffer;
@@ -41,6 +43,7 @@ typedef struct {
   size_t streams_length;
   char *temp_directory;
   size_t group;
+  size_t mbps;
   video_components *components;
 } defer_video_args;
 
@@ -51,11 +54,12 @@ typedef struct {
  *  @param[in] streams_length amount of streams
  *  @param[in] temp_directory directory to save files
  *  @param[in] group id of group to store
+ *  @param[in] mbps speed limit of dumping
  *  @param[in] components pointer to array item
  *  @note you should not free it manually if you pass them to thread
  *  @return pointer to new args if succeed, NULL on error.
  */
-defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, video_components *components);
+defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps, video_components *components);
 
 void free_defer_video_args(defer_video_args *args);
 

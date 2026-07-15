@@ -29,6 +29,7 @@ typedef enum {
   HELP,
   OUTPUT,
   SOURCES,
+  MBPS,
   VERSION,
 
   OPTION_TYPE_LENGTH
@@ -69,6 +70,7 @@ typedef struct {
   bool locally;
   long bitrate;
   char *output;
+  int mbps;
   bool sources;
   bool version;
 } options;
@@ -96,6 +98,7 @@ static flag available_flags[] = {
     {"port", 'p', "Server port.", PORT, .priority = 0},
     {"local", 0, "Save clip locally.", LOCALLY, .priority = 0},
 #endif
+    {"mbps", 0, "Speed limit of deferred clips' file dumping.", MBPS, .priority = 0},
     {"sources", 0, "Print available sources to record audio.", SOURCES,
      .priority = 0},
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},

@@ -41,9 +41,9 @@ void print_version() {
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
@@ -62,6 +62,7 @@ options *parse_flags(char **args, size_t size) {
   opts->length                = 10;
   opts->sources               = false;
   opts->version               = false;
+  opts->mbps                  = 50;
 #ifndef DISABLE_SENDER
   opts->locally               = false;
 #else
@@ -79,9 +80,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -101,6 +102,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
       break;
     case BITRATE:
       opts->bitrate = atoi(args[i+1]);
+      break;
+    case MBPS:
+      opts->mbps = atoi(args[i+1]);
       break;
     case STOP:
       opts->stop = true;
@@ -155,9 +159,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
 }
 
 #ifndef DISABLE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 14, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
@@ -172,6 +176,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [RENDER] = NONE,
   [LENGTH] = NUMBER,
   [BITRATE] = NUMBER,
+  [MBPS] = NUMBER,
 #ifndef DISABLE_SENDER
   [ADDRESS] = STRING,
   [PORT] = NUMBER,

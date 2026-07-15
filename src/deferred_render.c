@@ -5,23 +5,45 @@
 #include "stdbool.h"
 #include <unistd.h>
 #include <dirent.h>
+#include <time.h>
 
-#define CHUNK_SIZE 1024*1024
+#define SECOND_US 1000000
 #define DELAY_US 10000
+#define BYTES_PER_MB (1024 * 1024)
 
-int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path) {
+int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path, size_t mbps) {
   size_t start = 0;
   if (buffer_index > ring_buffer->capacity) start = buffer_index % ring_buffer->capacity;
   FILE *file = fopen(path, "wb");
-  size_t sum = 0;
+  if (!file) return -1;
+
+  size_t bytes_per_us = 0;
+  if (mbps != 0) {
+    bytes_per_us = mbps * BYTES_PER_MB / SECOND_US;
+    if (bytes_per_us == 0) bytes_per_us = 1;
+  }
+  struct timespec t0;
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+
+  size_t total_written = 0;
   for (size_t i = 0; i < ring_buffer->length; ++i) {
     void *d = circular_array_get(ring_buffer, start+i);
     fwrite(d, ring_buffer->item_size, 1, file);
-    sum += ring_buffer->item_size;
-    if (sum >= CHUNK_SIZE) {
-      sum = 0;
+    total_written += ring_buffer->item_size;
+
+    if (bytes_per_us == 0) continue;
+
+    size_t target_us = total_written / bytes_per_us;
+
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    long elapsed_us = (now.tv_sec - t0.tv_sec) * 1000000L + (now.tv_nsec - t0.tv_nsec) / 1000L;
+    long sleep_us = (long) target_us - elapsed_us;
+
+    if (sleep_us > 0) {
       fflush(file);
-      usleep(DELAY_US);
+      long capped = sleep_us < 200000L ? 200000L : sleep_us;
+      usleep((useconds_t)capped);
     }
   }
   fclose(file);
@@ -29,24 +51,24 @@ int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path
   return 0;
 }
 
-video_components defer_video(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group) {
+video_components defer_video(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps) {
   video_components components = {0};
   components.video_file = (char *)malloc(PATH_MAX);
   snprintf(components.video_file, PATH_MAX, "%s/%zu.raw", temp_directory, group);
-  dump_media_file(video_buffer, buffer_index, components.video_file);
+  dump_media_file(video_buffer, buffer_index, components.video_file, mbps);
 
   for (size_t i = 0; i < streams_length; ++i) {
     audio_stream *stream = streams[i];
     char *audio_filename = (char *)malloc(PATH_MAX);
     snprintf(audio_filename, PATH_MAX, "%s/%zu_%zu.raw", temp_directory, group, i);
-    dump_media_file(&stream->ring_buffer, stream->buffer_index, audio_filename);
+    dump_media_file(&stream->ring_buffer, stream->buffer_index, audio_filename, mbps);
     components.audio_files[components.audio_files_length++] = audio_filename;
   }
 
   return components;
 }
 
-defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, video_components *components) {
+defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps, video_components *components) {
   defer_video_args *video_args = malloc(sizeof(defer_video_args));
 
   if (!video_args) {
@@ -59,6 +81,7 @@ defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t bu
   video_args->components = components;
   video_args->streams_length = streams_length;
   video_args->streams = calloc(streams_length, sizeof(audio_stream *));
+  video_args->mbps = mbps;
 
   if (!video_args->streams) {
     goto fail;
@@ -117,7 +140,7 @@ void free_defer_video_args(defer_video_args *args) {
 void *thread_defer_video(void *args) {
   defer_video_args *video_args = args;
 
-  *video_args->components = defer_video(video_args->video_buffer, video_args->buffer_index, video_args->streams, video_args->streams_length, video_args->temp_directory, video_args->group);
+  *video_args->components = defer_video(video_args->video_buffer, video_args->buffer_index, video_args->streams, video_args->streams_length, video_args->temp_directory, video_args->group, video_args->mbps);
 
   free_defer_video_args(video_args);
 

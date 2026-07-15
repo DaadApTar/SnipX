@@ -603,7 +603,7 @@ int main(int argc, char **argv) {
       dir_create_if_not_exists(temp_directory);
 
       if (deferred_clips_amount < DEFERRED_CLIPS_CAPACITY) {
-        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, atomic_load(&video_frame_counter), audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, &deferred_clips[deferred_clips_amount]);
+        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, atomic_load(&video_frame_counter), audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
         pthread_t defer_video_thread;
         pthread_create(&defer_video_thread, NULL, thread_defer_video, dva);
         pthread_detach(defer_video_thread);
