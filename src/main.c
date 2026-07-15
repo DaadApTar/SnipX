@@ -303,6 +303,14 @@ void send_command(logger *logger, uint16_t command) {
   close(socket_fd);
 }
 
+void send_notification(const char *msg) {
+    NotifyNotification *notify = notify_notification_new("SnipX", msg, NULL);
+
+    notify_notification_show(notify, NULL);
+
+    g_object_unref(notify);
+}
+
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
@@ -348,9 +356,9 @@ int main(int argc, char **argv) {
   snprintf(default_snipx_tmp_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_TMP_DIR);
 
   if (opts->immediate) send_command(&logger, IMMEDIATE_COMMAND);
-  if (opts->stop) send_command(&logger, STOP_COMMAND);
-  if (opts->defer) send_command(&logger, DEFER_COMMAND);
   if (opts->render) send_command(&logger, RENDER_COMMAND);
+  if (opts->defer) send_command(&logger, DEFER_COMMAND);
+  if (opts->stop) send_command(&logger, STOP_COMMAND);
 
   if (opts->close_after) {
     log_print(&logger, LOG_INFO, "Exiting.\n");
@@ -545,12 +553,7 @@ int main(int argc, char **argv) {
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
-      NotifyNotification *notify;
-      notify = notify_notification_new("SnipX", "Rendering has started.", NULL);
-
-      notify_notification_show(notify, NULL);
-
-      g_object_unref(notify);
+      send_notification("Rendering has started.");
 
       char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
 
@@ -603,18 +606,12 @@ int main(int argc, char **argv) {
         pthread_detach(defer_video_thread);
         deferred_clips_amount++;
 
-        NotifyNotification *notify;
-        notify = notify_notification_new("SnipX", "Clip was deferred.", NULL);
-        notify_notification_show(notify, NULL);
-        g_object_unref(notify);
+        send_notification("Clip was deferred.");
       }
       else {
         log_print(&logger, LOG_WARNING, "Ran out of clips capacity.");
 
-        NotifyNotification *notify;
-        notify = notify_notification_new("SnipX", "Ran out of clips capacity.", NULL);
-        notify_notification_show(notify, NULL);
-        g_object_unref(notify);
+        send_notification("Ran out of clips capacity.");
       }
 
       free(temp_directory);
@@ -640,12 +637,7 @@ int main(int argc, char **argv) {
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
-      NotifyNotification *notify;
-      notify = notify_notification_new("SnipX", "Rendering has started.", NULL);
-
-      notify_notification_show(notify, NULL);
-
-      g_object_unref(notify);
+      send_notification("Rendering has started.");
 
       for (size_t i = 0; i < DEFERRED_CLIPS_CAPACITY; ++i) {
         if (deferred_clips[i].video_file == 0) continue;
