@@ -3,13 +3,26 @@
 #include "limits.h"
 #include "string.h"
 #include "stdbool.h"
+#include <unistd.h>
+
+#define CHUNK_SIZE 1024*1024
+#define DELAY_US 10000
 
 int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path) {
   size_t start = 0;
   if (buffer_index > ring_buffer->capacity) start = buffer_index % ring_buffer->capacity;
   FILE *file = fopen(path, "wb");
-  fwrite(ring_buffer->data+(start*ring_buffer->item_size), ring_buffer->item_size, ring_buffer->length-start, file);
-  if (start > 0) fwrite(ring_buffer->data, ring_buffer->item_size, start, file);
+  size_t sum = 0;
+  for (size_t i = 0; i < ring_buffer->length; ++i) {
+    void *d = circular_array_get(ring_buffer, start+i);
+    fwrite(d, ring_buffer->item_size, 1, file);
+    sum += ring_buffer->item_size;
+    if (sum >= CHUNK_SIZE) {
+      sum = 0;
+      fflush(file);
+      usleep(DELAY_US);
+    }
+  }
   fclose(file);
 
   return 0;
