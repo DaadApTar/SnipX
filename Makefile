@@ -18,8 +18,6 @@ LDFLAGS ?=
 LDLIBS := -lX11 -lXinerama -lXext -lpulse -lpthread \
            $(shell $(PKG_CONFIG) --libs $(PKGS))
 
-SENDER ?= true
-
 # Directories
 SRC_DIR := src
 INCLUDE_DIR := include
@@ -46,13 +44,9 @@ BUILD_CONFIG := .build-config
 TARGET_NAME := snipx
 SENDER_TARGET_NAME := snipx-sender
 
-# Final executable
+include features.mk
+
 TARGET := $(BUILD_DIR)/$(TARGET_NAME)
-ifeq ($(SENDER), true)
-SENDER_TARGET := $(BUILD_DIR)/$(SENDER_TARGET_NAME)
-else
-CFLAGS += -DDISABLE_SENDER
-endif
 
 .PHONY: all clean test
 

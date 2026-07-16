@@ -132,7 +132,7 @@ char *render_video(logger *logger, char *temp_directory,
 
   // Video file
   char *video_filename = (char*)malloc(PATH_MAX);
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
@@ -169,7 +169,7 @@ char *render_deferred_video(logger *logger, char *temp_directory,
                             options *opts, video_components components, unsigned int screen_width,
                             unsigned int screen_height) {
   char *video_filename = (char*)malloc(PATH_MAX);
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
 #else
@@ -399,7 +399,7 @@ int main(int argc, char **argv) {
   uint8_t socket_buffer[SOCKET_BUFFER_SIZE] = {0};
 
   pthread_t video_thread;
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   pthread_t sender_thread;
 #endif
   pthread_mutex_init(&lock, 0);
@@ -485,7 +485,7 @@ int main(int argc, char **argv) {
 
   prepare_pulseaudio(&pa, state);
 
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   char port[8];
   snprintf(port, 8, "%d", opts->port);
   sender_params temp_sender_params = {
@@ -560,7 +560,7 @@ int main(int argc, char **argv) {
 
       char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
 
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
       if (!opts->locally) {
         log_print(&logger, LOG_INFO, "Trying to send video.\n");
         if (send_video(logger, opts->address, port, video_filepath) == -1)
@@ -646,7 +646,7 @@ int main(int argc, char **argv) {
         if (deferred_clips[i].video_file == 0) continue;
         char *video_filepath = render_deferred_video(&logger, temp_directory, opts, deferred_clips[i], screen_width, screen_height);
 
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
         if (!opts->locally) {
           log_print(&logger, LOG_INFO, "Trying to send video.\n");
           if (send_video(logger, opts->address, port, video_filepath) == -1)
@@ -670,7 +670,7 @@ int main(int argc, char **argv) {
     close(client_fd);
   }
 
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   pthread_join(sender_thread, 0);
 #endif
 

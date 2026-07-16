@@ -1,4 +1,4 @@
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
 #include "sender.h"
 #include "log.h"
 #include <sys/wait.h>

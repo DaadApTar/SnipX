@@ -7,6 +7,7 @@
 #include <time.h>
 #include "directory_manager.h"
 #include "defaults.h"
+#include "build_features.h"
 
 #define HOME getenv("HOME")
 

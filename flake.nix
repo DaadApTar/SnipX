@@ -6,7 +6,7 @@
 
     mkSnipx = sender: pkgs.stdenv.mkDerivation {
       pname = "snipx";
-      version = "0.1.0";
+      version = "0.0.0";
       src = ./.;
 
       nativeBuildInputs = with pkgs; [

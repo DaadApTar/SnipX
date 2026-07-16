@@ -18,29 +18,7 @@ void print_usage(char *program) {
   printf("\n");
 }
 
-void print_version() {
-#if defined (APP_VERSION) && defined (GIT_COMMIT)
-  printf("snipx %s-%s\n", APP_VERSION, GIT_COMMIT);
-  printf("Compiler: ");
-  #if defined (__clang__)
-    printf("Clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
-  #elif defined (__GNUC__)
-    printf("GCC %d.%d.%d\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
-  #else
-    printf("unknown compiler\n");
-  #endif
-  printf("Built: %s %s\n", __DATE__, __TIME__);
-#else
-  #if !defined(APP_VERSION)
-    #error APP_VERSION is not defined
-  #endif
-  #if !defined(GIT_COMMIT)
-    #error GIT_VERSION is not defined
-  #endif
-#endif
-}
-
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
 static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
@@ -63,7 +41,7 @@ options *parse_flags(char **args, size_t size) {
   opts->sources               = false;
   opts->version               = false;
   opts->mbps                  = 50;
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   opts->locally               = false;
 #else
   opts->locally               = true;
@@ -79,7 +57,7 @@ options *parse_flags(char **args, size_t size) {
       free(opts);
       return 0;
     }
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
 static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
@@ -122,7 +100,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
       opts->render = true;
       opts->close_after = 1;
       break;
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
     case ADDRESS:
       opts->address = args[i+1];
       break;
@@ -158,7 +136,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
   return opts;
 }
 
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
 static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
 #else
 static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
@@ -177,7 +155,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [LENGTH] = NUMBER,
   [BITRATE] = NUMBER,
   [MBPS] = NUMBER,
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   [ADDRESS] = STRING,
   [PORT] = NUMBER,
   [LOCALLY] = NONE,

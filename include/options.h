@@ -21,7 +21,7 @@ typedef enum {
   RENDER,
   LENGTH,
   BITRATE,
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
   ADDRESS,
   PORT,
   LOCALLY,
@@ -93,7 +93,7 @@ static flag available_flags[] = {
     {"immediate", 'i', "Immediate render.", IMMEDIATE, .priority = 2},
     {"defer", 0, "Defer video rendering.", DEFER, .priority = 2},
     {"render", 'r', "Render deferred videos.", RENDER, .priority = 2},
-#ifndef DISABLE_SENDER
+#ifdef FEATURE_SENDER
     {"address", 'a', "Server IP-address.", ADDRESS, .priority = 0},
     {"port", 'p', "Server port.", PORT, .priority = 0},
     {"local", 0, "Save clip locally.", LOCALLY, .priority = 0},
