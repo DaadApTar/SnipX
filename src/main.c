@@ -316,15 +316,16 @@ void send_notification(const char *msg) {
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
-
-  logger logger;
-  log_init(&logger, opts->debug);
   notify_init("SnipX");
 
   if (opts == 0) {
     print_usage(program);
     return 1;
   }
+
+  logger logger;
+  log_init(&logger, opts->debug);
+
   if (opts->help) {
     print_usage(program);
     return 0;
