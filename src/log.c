@@ -19,7 +19,7 @@ char *log_get_time() {
   return return_time;
 }
 
-int log_init(logger *logger) {
+int log_init(logger *logger, bool debug) {
   // Creating log directory.
   char default_snipx_log_dir[256];
   snprintf(default_snipx_log_dir, 256, "%s/%s", dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR), DEFAULT_SNIPX_LOG_DIR);
@@ -32,11 +32,13 @@ int log_init(logger *logger) {
   sprintf(filename, "%s/%s.log", path, log_get_time());
   logger->file = fopen(filename, "w");
   logger->filename = filename;
+  logger->debug = debug;
   return 0;
 }
 
 int log_print(logger *logger, log_level level, const char *restrict format,
               ...) {
+  if (!logger->debug && level == LOG_DEBUG) return 0;
   char log_string[16];
   int ret;
   switch (level) {
@@ -49,6 +51,9 @@ int log_print(logger *logger, log_level level, const char *restrict format,
     case LOG_ERROR:
       sprintf(log_string, "ERROR");
       break;
+    case LOG_DEBUG:
+      sprintf(log_string, "DEBUG");
+      break;
     default:
       break;
   }
@@ -56,7 +61,12 @@ int log_print(logger *logger, log_level level, const char *restrict format,
   va_start(args, format);
   va_list args_copy;
   va_copy(args_copy, args);
-  printf("[%s %s%s"ANSI_RESET"] ", log_get_time(), level == LOG_INFO ? ANSI_GREEN : level == LOG_WARNING ? ANSI_YELLOW : level == LOG_ERROR ? ANSI_RED : "", log_string);
+  printf("[%s %s%s"ANSI_RESET"] ", log_get_time(),
+         level == LOG_INFO ? ANSI_GREEN
+         : level == LOG_WARNING ? ANSI_YELLOW
+         : level == LOG_ERROR ? ANSI_RED
+         : level == LOG_DEBUG ? ANSI_GREY
+         : "", log_string);
   ret = vprintf(format, args);
   if (ret < 0) return -1;
   ret = fprintf(logger->file, "[%s %s] ", log_get_time(), log_string);
@@ -68,6 +78,7 @@ int log_print(logger *logger, log_level level, const char *restrict format,
 }
 
 int log_close(logger *logger) {
+  log_print(logger, LOG_INFO, "File saved as %s\n", logger->filename);
   int ret = fclose(logger->file);
   free(logger->filename);
   if (ret != 0) return -1;

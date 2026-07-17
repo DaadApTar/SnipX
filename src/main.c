@@ -98,7 +98,7 @@ bool init_xinerama(logger *logger, Display *display) {
     return 0;
   }
 
-  log_print(logger, LOG_INFO, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
+  log_print(logger, LOG_DEBUG, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
 
   return 1;
 }
@@ -215,7 +215,7 @@ bool get_screen_data(logger *logger, Display *display,
   *screen_width = screen_info.width;
   *screen_height = screen_info.height;
   *xinerama_screen_number = screen_info.screen_number;
-  log_print(logger, LOG_INFO, "Screen x: %d, y: %d, width: %d, height: %d.\n", *screen_x, *screen_y, *screen_width, *screen_height);
+  log_print(logger, LOG_DEBUG, "Screen x: %d, y: %d, width: %d, height: %d.\n", *screen_x, *screen_y, *screen_width, *screen_height);
 
   return 1;
 }
@@ -241,7 +241,7 @@ bool init_xshm(logger *logger, Display *display,
     return false;
   }
 
-  log_print(logger, LOG_INFO, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
+  log_print(logger, LOG_DEBUG, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
 
   int depth = DefaultDepth(display, xinerama_screen_number);
   Visual *visual = DefaultVisual(display, xinerama_screen_number);
@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
   options *opts = parse_flags(argv, argc-1);
 
   logger logger;
-  log_init(&logger);
+  log_init(&logger, opts->debug);
   notify_init("SnipX");
 
   if (opts == 0) {
@@ -367,7 +367,6 @@ int main(int argc, char **argv) {
 
   if (opts->close_after) {
     log_print(&logger, LOG_INFO, "Exiting.\n");
-    log_print(&logger, LOG_INFO, "File saved as %s\n", logger.filename);
     log_close(&logger);
     return 0;
   }
@@ -385,7 +384,7 @@ int main(int argc, char **argv) {
   };
   socklen_t addrlen = sizeof(addr);
 
-  log_print(&logger, LOG_INFO, "Setting socket to reuse address.\n");
+  log_print(&logger, LOG_DEBUG, "Setting socket to reuse address.\n");
   if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
     ERROR_ERRNO(&logger);
   }
@@ -535,7 +534,7 @@ int main(int argc, char **argv) {
       ERROR_ERRNO(&logger);
     }
 
-    log_print(&logger, LOG_INFO, "Received message.\n");
+    log_print(&logger, LOG_DEBUG, "Received message.\n");
 
     uint8_t stop_command[] = COMMAND_TO_BYTES(STOP_COMMAND);
     uint8_t brake_command[] = COMMAND_TO_BYTES(IMMEDIATE_COMMAND);
@@ -685,7 +684,6 @@ free_app:
   pthread_mutex_destroy(&lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");
-  log_print(&logger, LOG_INFO, "Log file saved as %s\n", logger.filename);
   log_close(&logger);
 
   // Freeing ring buffers

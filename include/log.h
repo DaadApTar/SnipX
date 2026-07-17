@@ -2,15 +2,18 @@
 #define LOG_H_
 
 #include <stdio.h>
+#include <stdbool.h>
 typedef struct {
   FILE *file;
   char *filename;
+  bool debug;
 } logger;
 
 typedef enum {
   LOG_INFO,
   LOG_WARNING,
-  LOG_ERROR
+  LOG_ERROR,
+  LOG_DEBUG,
 } log_level;
 
 /** @brief Provides a localtime.
@@ -20,9 +23,10 @@ char *log_get_time();
 
 /** @brief Initialises logger.
  *  @param[out] logger pointer to instance.
+ *  @param[in] debug should it print debug.
  *  @return 0 if succeed, -1 on error.
  */
-int log_init(logger *logger);
+int log_init(logger *logger, bool debug);
 
 /** @brief Initialises logger.
  *  @param[in] logger pointer to instance.

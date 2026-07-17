@@ -11,6 +11,7 @@
 #define ANSI_GREEN "\e[0;32m"
 #define ANSI_YELLOW "\e[0;33m"
 #define ANSI_RESET "\e[0m"
+#define ANSI_GREY "\e[2;37m"
 #define FEATURE_COLORS_STRING ANSI_GREEN"+colors "
 
 #else
@@ -19,6 +20,7 @@
 #define ANSI_GREEN ""
 #define ANSI_YELLOW ""
 #define ANSI_RESET ""
+#define ANSI_GREY ""
 #define FEATURE_COLORS_STRING ANSI_RED"-colors "
 
 #endif // FEATURE_COLORS

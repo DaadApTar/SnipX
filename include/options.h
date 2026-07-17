@@ -28,6 +28,7 @@ typedef enum {
 #endif
   HELP,
   OUTPUT,
+  DEBUG,
   AUTOCOMPLETION,
   SOURCES,
   MBPS,
@@ -75,6 +76,7 @@ typedef struct {
   bool sources;
   bool version;
   char *autocompletion;
+  bool debug;
 } options;
 
 static flag available_flags[] = {
@@ -105,6 +107,7 @@ static flag available_flags[] = {
      .priority = 0},
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
     {"autocompletion", 'u', "Dump an autocompletion script. Supported: zsh, bash.", AUTOCOMPLETION, .priority = 0},
+    {"debug", 0, "Enable debug logs.", DEBUG, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
     {"version", 'v', "Print the version.", VERSION, .priority = 0},
 };

@@ -19,9 +19,9 @@ void print_usage(char *program) {
 }
 
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 20, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
@@ -41,6 +41,7 @@ options *parse_flags(char **args, size_t size) {
   opts->sources               = false;
   opts->version               = false;
   opts->mbps                  = 50;
+  opts->debug                 = false;
 #ifdef FEATURE_SENDER
   opts->locally               = false;
 #else
@@ -58,9 +59,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 20, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -87,6 +88,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
     case STOP:
       opts->stop = true;
       opts->close_after = 1;
+      break;
+    case DEBUG:
+      opts->debug = true;
       break;
     case IMMEDIATE:
       opts->immediate = true;
@@ -141,9 +145,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
 }
 
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 20, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
@@ -168,7 +172,8 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [OUTPUT] = STRING,
   [SOURCES] = NONE,
   [VERSION] = NONE,
-  [AUTOCOMPLETION] = STRING
+  [AUTOCOMPLETION] = STRING,
+  [DEBUG] = NONE,
 };
 
 value_type get_value_type(option_type option) {
