@@ -38,6 +38,8 @@ TEST_BIN := $(BUILD_DIR)/test_runner
 
 PREFIX ?= $(HOME)/.local
 INSTALL_DIR := $(PREFIX)/bin/
+ZSH_COMPLETION_DIR = $(PREFIX)/share/zsh/site-functions
+BASH_COMPLETION_DIR = $(PREFIX)/share/bash-completion/completions
 
 BUILD_CONFIG := .build-config
 
@@ -95,6 +97,8 @@ install: $(TARGET)
 endif
 	mkdir -p $(INSTALL_DIR)
 	cp $(TARGET) $(INSTALL_DIR)
+	$(TARGET) --autocompletion zsh > $(ZSH_COMPLETION_DIR)/_snipx
+	$(TARGET) --autocompletion bash > $(BASH_COMPLETION_DIR)/snipx
 ifeq ($(SENDER), true)
 	cp $(SENDER_TARGET) $(INSTALL_DIR)
 endif
@@ -102,6 +106,8 @@ endif
 
 uninstall:
 	rm $(INSTALL_DIR)/$(TARGET_NAME) $(INSTALL_DIR)/$(SENDER_TARGET_NAME)
+	rm $(ZSH_COMPLETION_DIR)/_snipx
+	rm $(BASH_COMPLETION_DIR)/snipx
 
 # ===== Clean =====
 

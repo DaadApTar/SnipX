@@ -12,16 +12,16 @@ void print_usage(char *program) {
     flag available_flag = available_flags[i];
     if (available_flag.short_flag != 0) printf("%-4c-%c", ' ', available_flag.short_flag);
     else printf("%-6c", ' ');
-    printf("%-4c--%-12s%s\n", ' ', available_flag.long_flag,
+    printf("%-4c--%-16s%s\n", ' ', available_flag.long_flag,
                                     available_flag.description);
   }
   printf("\n");
 }
 
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
 #endif
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
@@ -58,9 +58,9 @@ options *parse_flags(char **args, size_t size) {
       return 0;
     }
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
 #endif
     switch (option) {
     case SCREEN_NUMBER:
@@ -126,6 +126,10 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
     case OUTPUT:
       opts->output = args[i+1];
       break;
+    case AUTOCOMPLETION:
+      opts->autocompletion = args[i+1];
+      opts->close_after = true;
+      break;
     default:
       free(opts);
       return 0;
@@ -137,9 +141,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
 }
 
 #ifdef FEATURE_SENDER
-static_assert(OPTION_TYPE_LENGTH - 1 == 18, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 19, "New option has been added");
 #else
-static_assert(OPTION_TYPE_LENGTH - 1 == 15, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 16, "New option has been added");
 #endif
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
@@ -164,6 +168,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [OUTPUT] = STRING,
   [SOURCES] = NONE,
   [VERSION] = NONE,
+  [AUTOCOMPLETION] = STRING
 };
 
 value_type get_value_type(option_type option) {

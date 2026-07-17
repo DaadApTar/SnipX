@@ -63,6 +63,10 @@ Pass the corresponding indices to `--desktop` and `--mic`. For example:
 ```sh
 $ snipx --desktop 64 --mic 66
 ```
+## Features
+You can toggle features included in program at compile time. Available features:
+- `SENDER` - posting clips on your video server. (Default: 1)
+- `COLORS` - using ANSI colors for output. (Default: 1)
 ## Logging
 By default, snipx saves logs in `$HOME/.local/share/snipx/logs/`, but it can be changed with environmental variable `SNIPX_LOG_DIR`.
 ## Env variables

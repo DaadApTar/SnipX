@@ -25,6 +25,7 @@
 #include "pulseaudio.h"
 #include "deferred_render.h"
 #include <libnotify/notify.h>
+#include "autocompletion.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -349,6 +350,10 @@ int main(int argc, char **argv) {
     free_pa(&pa);
 
     return 0;
+  }
+  if (opts->autocompletion != 0) {
+    if (generate_autocompletion_script(&logger, opts->autocompletion) < 0) return 1;
+    else return 0;
   }
 
   dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR));

@@ -28,6 +28,7 @@ typedef enum {
 #endif
   HELP,
   OUTPUT,
+  AUTOCOMPLETION,
   SOURCES,
   MBPS,
   VERSION,
@@ -73,6 +74,7 @@ typedef struct {
   int mbps;
   bool sources;
   bool version;
+  char *autocompletion;
 } options;
 
 static flag available_flags[] = {
@@ -88,7 +90,7 @@ static flag available_flags[] = {
      "mic won't be recorded.",
      MIC_SOUND_MONITOR, .priority = 0},
     {"length", 'l', "Length of the video in seconds.", LENGTH, .priority = 0},
-    {"bitrate", 0, "Video bitrate.", BITRATE, .priority = 0},
+    {"bitrate", 'b', "Video bitrate.", BITRATE, .priority = 0},
     {"stop", 0, "Stop the recording.", STOP, .priority = 2},
     {"immediate", 'i', "Immediate render.", IMMEDIATE, .priority = 2},
     {"defer", 0, "Defer video rendering.", DEFER, .priority = 2},
@@ -98,10 +100,11 @@ static flag available_flags[] = {
     {"port", 'p', "Server port.", PORT, .priority = 0},
     {"local", 0, "Save clip locally.", LOCALLY, .priority = 0},
 #endif
-    {"mbps", 0, "Speed limit of deferred clips' file dumping.", MBPS, .priority = 0},
+    {"mbps", 0, "Speed limit of deferred clips file dumping.", MBPS, .priority = 0},
     {"sources", 0, "Print available sources to record audio.", SOURCES,
      .priority = 0},
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
+    {"autocompletion", 'u', "Dump an autocompletion script. Supported: zsh, bash.", AUTOCOMPLETION, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
     {"version", 'v', "Print the version.", VERSION, .priority = 0},
 };
