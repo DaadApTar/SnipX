@@ -14,10 +14,11 @@ typedef struct {
 
 /** @brief prepares pulseaudio context.
  *  @param[out] pa pulseaudio context
+ *  @param[in] logger logger
  *  @param[in] state state
  *  @return 0 on success, -1 on error.
  */
-int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state);
+int prepare_pulseaudio(snipx_pulseaudio *pa, logger *logger, snipx_pa_state state);
 
 /** @brief inits and starts pulseaudio thread.
  *  @param[in] pa pulseaudio context

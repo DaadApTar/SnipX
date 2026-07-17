@@ -123,6 +123,7 @@ char *render_video(logger *logger, char *temp_directory,
 
   size_t sound_files_index = 0;
   for (size_t i = 0; i < audio_capture->length; ++i) {
+    if (audio_capture->streams[i]->stream == 0) continue;
     char audio_filename[PATH_MAX];
     snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
     render_sound(logger, audio_capture->streams[i]->buffer_index,
@@ -340,7 +341,7 @@ int main(int argc, char **argv) {
 
     snipx_pulseaudio pa;
 
-    prepare_pulseaudio(&pa, state);
+    prepare_pulseaudio(&pa, &logger, state);
 
     if (start_pulseaudio(&pa) < 0) {
       log_print(&logger, LOG_ERROR,
@@ -487,7 +488,7 @@ int main(int argc, char **argv) {
 
   snipx_pulseaudio pa;
 
-  prepare_pulseaudio(&pa, state);
+  prepare_pulseaudio(&pa, &logger, state);
 
 #ifdef FEATURE_SENDER
   char port[8];

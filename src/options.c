@@ -89,7 +89,8 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 17, "New option has been added");
       opts->stop = true;
       opts->close_after = 1;
       break;
-    case DEBUG:
+    // space between debug and : is essential for magit-todos to not show this line
+    case DEBUG :
       opts->debug = true;
       break;
     case IMMEDIATE:

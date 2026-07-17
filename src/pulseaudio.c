@@ -1,7 +1,8 @@
 #include "pulseaudio.h"
 
-int prepare_pulseaudio(snipx_pulseaudio *pa, snipx_pa_state state) {
+int prepare_pulseaudio(snipx_pulseaudio *pa, logger *logger, snipx_pa_state state) {
   pa->state = state;
+  pa->logger = logger;
 
   pa->ml = pa_threaded_mainloop_new();
   if (!pa->ml) {
@@ -32,6 +33,13 @@ int start_pulseaudio(snipx_pulseaudio *pa) {
 
   pa_threaded_mainloop_unlock(pa->ml);
 
+  audio_stream **streams = pa->state.capture.streams;
+  size_t length = pa->state.capture.length;
+
+  for (size_t i = 0; i < length; ++i) {
+    if (streams[i]->stream == 0) log_print(pa->logger, LOG_WARNING, "Source %d is not available.\n", streams[i]->index);
+  }
+
   return 0;
 }
 
@@ -41,6 +49,7 @@ void stop_pulseaudio(snipx_pulseaudio *pa) {
 
 void proceed_pulseaudio(snipx_pulseaudio *pa) {
   for (size_t i = 0; i < pa->state.capture.length; ++i) {
+    if (pa->state.capture.streams[i]->stream == 0) continue;
     pa_operation *op = pa_stream_flush(pa->state.capture.streams[i]->stream, flush_cb, (void *)pa->ml);
     while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) pa_threaded_mainloop_wait(pa->ml);
     pa_operation_unref(op);
