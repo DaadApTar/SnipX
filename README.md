@@ -5,7 +5,7 @@ SnipX is an utility for recording instant replays on X11, sending and storing th
 - X11 server
 - libXinerama
 - libXext
-- Go (for sending, [can be disabled](##Building))
+- Go (for sending, [can be disabled](#Building))
 - PulseAudio
 - dbus
 - A lot of free space in RAM (yet)
