@@ -33,7 +33,7 @@ options *parse_flags(char **args, size_t size) {
   opts->help                  = false;
   opts->fps                   = 30;
   opts->screen_number         = 0;
-  opts->desktop_sound_monitor = -1;
+  opts->desktop_sound_monitor = 0;
   opts->mic_sound_monitor     = -1;
   opts->port                  = 0;
   opts->bitrate               = 2500000;

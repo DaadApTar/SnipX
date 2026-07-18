@@ -67,7 +67,7 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
   case MODE_RECORD: {
     for (size_t iterator = 0; iterator < state->capture.length; ++iterator) {
       if (state->capture.streams[iterator]->stream) continue;
-      if (state->capture.streams[iterator]->index == i->index) {
+      if (state->capture.streams[iterator]->index == i->index || state->capture.streams[iterator]->index == 0) {
 
         pa_sample_spec ss = {
           .format = PA_SAMPLE_S16LE,
@@ -91,9 +91,9 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
                                   PA_STREAM_INTERPOLATE_TIMING |
                                   PA_STREAM_ADJUST_LATENCY;
 
-        pa_stream_connect_record(info->stream,
-                                  i->name, &attr, flags);
-        }
+        if (info->index == 0) pa_stream_connect_record(info->stream, 0, &attr, flags);
+        else pa_stream_connect_record(info->stream, i->name, &attr, flags);
+      }
     }
   }; break;
   }
