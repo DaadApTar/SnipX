@@ -22,9 +22,7 @@
         libxinerama
         libxext
         libpulseaudio
-        libnotify
-        glib
-        gdk-pixbuf
+        dbus
       ];
 
       buildPhase = ''

@@ -4,7 +4,7 @@ CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
 
-PKGS = glib-2.0 gio-2.0 gdk-pixbuf-2.0 libnotify
+PKGS = libnotify dbus-1
 
 VERSION := 0.0.0
 COMMIT := $(shell git rev-parse --short HEAD)

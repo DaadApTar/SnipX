@@ -24,8 +24,8 @@
 #include "sender.h"
 #include "pulseaudio.h"
 #include "deferred_render.h"
-#include <libnotify/notify.h>
 #include "autocompletion.h"
+#include "notification.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -305,18 +305,9 @@ void send_command(logger *logger, uint16_t command) {
   close(socket_fd);
 }
 
-void send_notification(const char *msg) {
-    NotifyNotification *notify = notify_notification_new("SnipX", msg, NULL);
-
-    notify_notification_show(notify, NULL);
-
-    g_object_unref(notify);
-}
-
 int main(int argc, char **argv) {
   char* program = *(argv++);
   options *opts = parse_flags(argv, argc-1);
-  notify_init("SnipX");
 
   if (opts == 0) {
     print_usage(program);
@@ -357,6 +348,8 @@ int main(int argc, char **argv) {
     if (generate_autocompletion_script(&logger, opts->autocompletion) < 0) return 1;
     else return 0;
   }
+
+  dbus_conn_new(&logger);
 
   dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR));
   char default_snipx_tmp_dir[256];
@@ -562,7 +555,7 @@ int main(int argc, char **argv) {
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
-      send_notification("Rendering has started.");
+      send_notification(&logger, "Rendering has started.");
 
       char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
 
@@ -615,12 +608,12 @@ int main(int argc, char **argv) {
         pthread_detach(defer_video_thread);
         deferred_clips_amount++;
 
-        send_notification("Clip was deferred.");
+        send_notification(&logger, "Clip was deferred.");
       }
       else {
         log_print(&logger, LOG_WARNING, "Ran out of clips capacity.");
 
-        send_notification("Ran out of clips capacity.");
+        send_notification(&logger, "Ran out of clips capacity.");
       }
 
       free(temp_directory);
@@ -646,7 +639,7 @@ int main(int argc, char **argv) {
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
       dir_create_if_not_exists(temp_directory);
 
-      send_notification("Rendering has started.");
+      send_notification(&logger, "Rendering has started.");
 
       for (size_t i = 0; i < DEFERRED_CLIPS_CAPACITY; ++i) {
         if (deferred_clips[i].video_file == 0) continue;
@@ -701,6 +694,5 @@ free_app:
   shmdt(shminfo.shmaddr);
   shmctl(shminfo.shmid, IPC_RMID, 0);
 
-  notify_uninit();
   return 0;
 }
