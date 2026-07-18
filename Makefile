@@ -97,6 +97,8 @@ install: $(TARGET)
 endif
 	mkdir -p $(INSTALL_DIR)
 	cp $(TARGET) $(INSTALL_DIR)
+	mkdir -p $(ZSH_COMPLETION_DIR)
+	mkdir -p $(BASH_COMPLETION_DIR)
 	$(TARGET) --autocompletion zsh > $(ZSH_COMPLETION_DIR)/_snipx
 	$(TARGET) --autocompletion bash > $(BASH_COMPLETION_DIR)/snipx
 ifeq ($(SENDER), true)
