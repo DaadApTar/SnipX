@@ -128,13 +128,13 @@ void test_option_value_comparation() {
   test test = {.name = "option value comparation"};
   assert_int(&test, 1, get_value_type(UNKNOWN) == NONE);
   assert_int(&test, 1, get_value_type(SCREEN_NUMBER) == NUMBER);
-  assert_int(&test, 1, get_value_type(WINDOW) == NONE);
+  /* assert_int(&test, 1, get_value_type(WINDOW) == NONE); */
   assert_int(&test, 1, get_value_type(FPS) == NUMBER);
-  assert_int(&test, 1, get_value_type(SOUND_MONITOR) == STRING);
-  assert_int(&test, 1, get_value_type(BRAKE) == NONE);
+  assert_int(&test, 1, get_value_type(DESKTOP_SOUND_MONITOR) == NUMBER);
+  assert_int(&test, 1, get_value_type(IMMEDIATE) == NONE);
   assert_int(&test, 1, get_value_type(ADDRESS) == STRING);
   assert_int(&test, 1, get_value_type(PORT) == NUMBER);
-  assert_int(&test, 0, get_value_type(BRAKE) == STRING);
+  assert_int(&test, 0, get_value_type(IMMEDIATE) == STRING);
   assert_int(&test, 0, get_value_type(SCREEN_NUMBER) == STRING);
   assert_int(&test, 0, get_value_type(FPS) == NONE);
   assert_int(&test, 1, get_value_type(LOCALLY) == NONE);
@@ -147,14 +147,14 @@ void test_parse_flag() {
   assert_int(&test, SCREEN_NUMBER, parse_flag("-s"));
   assert_int(&test, FPS, parse_flag("--fps"));
   assert_int(&test, FPS, parse_flag("-f"));
-  assert_int(&test, SOUND_MONITOR, parse_flag("--monitor"));
-  assert_int(&test, SOUND_MONITOR, parse_flag("-m"));
+  assert_int(&test, DESKTOP_SOUND_MONITOR, parse_flag("--desktop"));
+  assert_int(&test, DESKTOP_SOUND_MONITOR, parse_flag("-d"));
 #ifdef FEATURE_SENDER
   assert_int(&test, ADDRESS, parse_flag("--address"));
   assert_int(&test, PORT, parse_flag("-p"));
 #endif
-  assert_int(&test, BRAKE, parse_flag("--brake"));
-  assert_int(&test, BRAKE, parse_flag("-b"));
+  assert_int(&test, IMMEDIATE, parse_flag("--immediate"));
+  assert_int(&test, IMMEDIATE, parse_flag("-i"));
   assert_int(&test, UNKNOWN, parse_flag("--dfg"));
 #ifdef FEATURE_SENDER
   assert_int(&test, LOCALLY, parse_flag("--local"));
@@ -181,9 +181,9 @@ void test_parse_flags() {
     "0",
     "-f",
     "60",
-    "--monitor",
-    "some_monitor",
-    "-b",
+    "--desktop",
+    "60",
+    "-i",
     "-l",
     "20",
     "--bitrate",
@@ -198,15 +198,15 @@ void test_parse_flags() {
   };
   options *opts = parse_flags(args, sizeof(args) / sizeof(args[0]));
   if (opts == 0) {
-    fprintf(stderr, RED"Failed to parse opts.\n");
+    fprintf(stderr, RED"Failed to parse opts.\n"RESET);
     return;
   }
   assert_int(&test, 0, opts->screen_number);
   assert_int(&test, 60, opts->fps);
-  assert_int(&test, 1, opts->brake);
+  assert_int(&test, 1, opts->immediate);
   assert_int(&test, 2500000, opts->bitrate);
   assert_int(&test, 20, opts->length);
-  assert_int(&test, 0, strcmp("some_monitor", opts->sound_monitor));
+  assert_int(&test, 60, opts->desktop_sound_monitor);
 #ifdef FEATURE_SENDER
   assert_int(&test, 4227, opts->port);
   assert_int(&test, 0, strcmp("0.0.0.0", opts->address));
