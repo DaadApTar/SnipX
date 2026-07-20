@@ -20,15 +20,14 @@
 #define STREAMS_CAPACITY 8
 
 typedef struct {
-  Display *display;
-  Window window;
-  XImage *shared_image;
   int screen_x;
   int screen_y;
+  int screen_width;
+  int screen_height;
   int framerate;
-  logger *logger;
   circular_array *ring_buffer;
-} video_capturing_params;
+  size_t buffer_index;
+} video_capture;
 
 /** @brief PulseAudio stream info for reading.
  *  @note stream and buffer_index are set inside read callback.
@@ -45,12 +44,10 @@ typedef struct {
   size_t fragsize;
   audio_stream *streams[STREAMS_CAPACITY];
   size_t length;
-  size_t capacity;
 } audio_capture;
 
 extern atomic_bool     running_flag;
 extern pthread_mutex_t lock;
-extern atomic_int      video_frame_counter;
 
 /** @brief Thread for capturing video.
  *  @param[in] arg #video_capturing_params.

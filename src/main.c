@@ -12,12 +12,6 @@
 #include "log.h"
 #include <unistd.h>
 #include <pthread.h>
-#include <X11/X.h>
-#include <X11/Xutil.h>
-#include <X11/extensions/Xinerama.h>
-#include <X11/extensions/XShm.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
 #include "ffmpeg.h"
 #include "directory_manager.h"
 #include "defaults.h"
@@ -26,6 +20,8 @@
 #include "deferred_render.h"
 #include "autocompletion.h"
 #include "notification.h"
+#include <version.h>
+#include "x11.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -82,27 +78,6 @@ void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buff
   ffmpeg_close(sound);
 }
 
-/** @brief Initialises xinerama.
- *  @param[in] logger logger
- *  @param[in] display X11 display
- *  @return true on success.
- */
-bool init_xinerama(logger *logger, Display *display) {
-  int xinerama_minor, xinerama_major;
-  if (!XineramaQueryExtension(display, &xinerama_minor, &xinerama_major)) {
-    log_print(logger, LOG_ERROR, "Xinerama is not supported.\n");
-    return 0;
-  }
-  if (!XineramaIsActive(display)) {
-    log_print(logger, LOG_ERROR, "Xinerama is not active.\n");
-    return 0;
-  }
-
-  log_print(logger, LOG_DEBUG, "Xinerama version: %d.%d\n", xinerama_major, xinerama_minor);
-
-  return 1;
-}
-
 /** @brief Renders a video.
  *  @param[in] logger logger
  *  @param[in] temp_directory a directory to save temp files.
@@ -115,8 +90,7 @@ bool init_xinerama(logger *logger, Display *display) {
  */
 char *render_video(logger *logger, char *temp_directory,
                   options *opts, audio_capture *audio_capture,
-                  circular_array video_ring_buffer, unsigned int screen_width,
-                  unsigned int screen_height) {
+                  video_capture video_capture) {
   // ffmpeg
 
   char *sound_files[SOUND_FILES_CAPACITY] = {0};
@@ -143,14 +117,14 @@ char *render_video(logger *logger, char *temp_directory,
 
   uint32_t *frame;
 
-  ffmpeg *video = ffmpeg_init_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
-  int video_start = atomic_load(&video_frame_counter) - opts->fps * opts->length;
+  ffmpeg *video = ffmpeg_init_video(video_filename, video_capture.screen_width, video_capture.screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
+  int video_start = video_capture.buffer_index - opts->fps * opts->length;
   if (video_start < 0) video_start = 0;
 
   log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-  for (int i = video_start; i < atomic_load(&video_frame_counter); ++i) {
-    frame = circular_array_get(&video_ring_buffer, i);
-    ffmpeg_push_frame(video, frame, sizeof(uint32_t) * screen_width * screen_height);
+  for (size_t i = video_start; i < video_capture.buffer_index; ++i) {
+    frame = circular_array_get(video_capture.ring_buffer, i);
+    ffmpeg_push_frame(video, frame, sizeof(uint32_t) * video_capture.screen_width * video_capture.screen_height);
   }
 
   ffmpeg_close(video);
@@ -187,40 +161,6 @@ char *render_deferred_video(logger *logger, char *temp_directory,
   return video_filename;
 }
 
-/** @brief Sets coordinates of selected screen.
- *  @param[in] logger logger
- *  @param[in] display X11 display
- *  @param[in] screen_number index of screen to record
- *  @param[out] screen_x selected screen x
- *  @param[out] screen_y selected screen y
- *  @param[out] screen_width selected screen width
- *  @param[out] screen_height selected screen height
- *  @param[out] xinerama_screen_number selected screen number given by xinerama
- *  @return true on success.
- */
-bool get_screen_data(logger *logger, Display *display,
-                     int screen_number, short *screen_x,
-                     short *screen_y, short *screen_width,
-                     short *screen_height, unsigned int *xinerama_screen_number) {
-  int num_screens = 0;
-  log_print(logger, LOG_INFO, "Getting existing screens.\n");
-  XineramaScreenInfo *screens = XineramaQueryScreens(display, &num_screens);
-  if (screen_number > num_screens - 1) {
-    log_print(logger, LOG_ERROR, "Invalid screen number.\n");
-    return 0;
-  }
-
-  XineramaScreenInfo screen_info = screens[screen_number];
-  *screen_x = screen_info.x_org;
-  *screen_y = screen_info.y_org;
-  *screen_width = screen_info.width;
-  *screen_height = screen_info.height;
-  *xinerama_screen_number = screen_info.screen_number;
-  log_print(logger, LOG_DEBUG, "Screen x: %d, y: %d, width: %d, height: %d.\n", *screen_x, *screen_y, *screen_width, *screen_height);
-
-  return 1;
-}
-
 /** @brief Initialises XShm extension and shared image.
  *  @param[in] logger logger
  *  @param[in] display X11 display
@@ -231,48 +171,6 @@ bool get_screen_data(logger *logger, Display *display,
  *  @param[out] shared_image image shared with X11
  *  @return true on success.
  */
-bool init_xshm(logger *logger, Display *display,
-               unsigned int screen_width, unsigned int screen_height,
-               unsigned int xinerama_screen_number, XShmSegmentInfo *shminfo,
-               XImage **shared_image) {
-  int shm_minor, shm_major;
-  Bool pixmaps;
-  if (!XShmQueryVersion(display, &shm_minor, &shm_major, &pixmaps)) {
-    log_print(logger, LOG_ERROR, "Xshm is not supported.\n");
-    return false;
-  }
-
-  log_print(logger, LOG_DEBUG, "Xshm version: %d.%d with shared pixmaps support: %s\n", shm_major, shm_minor, pixmaps ? "ON" : "OFF");
-
-  int depth = DefaultDepth(display, xinerama_screen_number);
-  Visual *visual = DefaultVisual(display, xinerama_screen_number);
-  *shared_image = XShmCreateImage(display, visual, depth, ZPixmap, 0, shminfo, screen_width, screen_height);
-
-  if (!shared_image) {
-    log_print(logger, LOG_ERROR, "Cannot create shared image.\n");
-    return false;
-  }
-
-  shminfo->shmid = shmget(IPC_PRIVATE, (*shared_image)->bytes_per_line * (*shared_image)->height, IPC_CREAT|0777);
-
-  if (shminfo->shmid < 0) {
-    log_print(logger, LOG_ERROR, "Cannot get shmid: %s.\n", strerror(errno));
-    return false;
-  }
-
-  (*shared_image)->data = (char *)shmat(shminfo->shmid, 0, 0);
-  shminfo->shmaddr = (*shared_image)->data;
-  shminfo->readOnly = False;
-
-  if (!XShmAttach(display, shminfo)) {
-    log_print(logger, LOG_ERROR, "Cannot attach shared memory segment.\n");
-    return false;
-  }
-  XSync(display, False);
-
-  return true;
-}
-
 void send_command(logger *logger, uint16_t command) {
   log_print(logger, LOG_INFO, "Connecting to process.\n");
 
@@ -407,24 +305,19 @@ int main(int argc, char **argv) {
   // Initialise X11
 
   log_print(&logger, LOG_INFO, "Opening X11 display.\n");
-  Display *display = XOpenDisplay(0);
-  Window root = DefaultRootWindow(display);
+  snipx_x11 x11 = init_x11(&logger);
 
-  if (!init_xinerama(&logger, display)) {
+  if (init_xinerama(x11) < 0) {
     close(socket_fd);
     return 1;
   };
 
-  short screen_x, screen_y, screen_width, screen_height;
-  unsigned int xinerama_screen_number;
-  if (!get_screen_data(&logger, display, opts->screen_number, &screen_x, &screen_y, &screen_width, &screen_height, &xinerama_screen_number)) {
+  if (get_screen_data(&x11, opts->screen_number) < 0) {
     close(socket_fd);
     return 1;
   };
 
-  XShmSegmentInfo shminfo;
-  XImage *shared_image = NULL;
-  if (!init_xshm(&logger, display, screen_width, screen_height, xinerama_screen_number, &shminfo, &shared_image)) {
+  if (init_xshm(&x11) < 0) {
     close(socket_fd);
     return 1;
   }
@@ -436,21 +329,13 @@ int main(int argc, char **argv) {
   circular_array mic_audio_ring_buffer;
 
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  circular_array_init(&video_ring_buffer, opts->fps * opts->length, shared_image->bytes_per_line * shared_image->height);
+  circular_array_init(&video_ring_buffer, opts->fps * opts->length, x11.shared_image->bytes_per_line * x11.shared_image->height);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
   circular_array_init(&desktop_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
   circular_array_init(&mic_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
 
-  video_capturing_params video_params = {
-    .display = display,
-    .window = root,
-    .shared_image = shared_image,
-    .screen_x = screen_x,
-    .screen_y = screen_y,
-    .framerate = opts->fps,
-    .logger = &logger,
-    .ring_buffer = &video_ring_buffer,
-  };
+  x11.capture.ring_buffer = &video_ring_buffer;
+  x11.capture.framerate = opts->fps;
 
   // Initialise pulseaudio
   log_print(&logger, LOG_INFO, "Preparing PulseAudio.\n");
@@ -499,7 +384,7 @@ int main(int argc, char **argv) {
   pthread_create(&sender_thread, 0, thread_send_temp_files, (void *)&temp_sender_params);
 #endif
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
-  pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+  pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
   if (start_pulseaudio(&pa) < 0) {
     log_print(&logger, LOG_ERROR,
@@ -557,7 +442,7 @@ int main(int argc, char **argv) {
 
       send_notification(&logger, "Rendering has started.");
 
-      char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, video_ring_buffer, screen_width, screen_height);
+      char *video_filepath = render_video(&logger, temp_directory, opts, &audio_capture, x11.capture);
 
 #ifdef FEATURE_SENDER
       if (!opts->locally) {
@@ -575,7 +460,7 @@ int main(int argc, char **argv) {
       free(video_filepath);
       free(temp_directory);
 
-      atomic_store(&video_frame_counter, 0);
+      x11.capture.buffer_index = 0;
 
       circular_array_clear(&video_ring_buffer);
 
@@ -584,8 +469,8 @@ int main(int argc, char **argv) {
         audio_capture.streams[i]->buffer_index = 0;
       }
       atomic_store(&running_flag, 1);
-      atomic_store(&video_frame_counter, 1);
-      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+      x11.capture.buffer_index = 0;
+      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
 
       proceed_pulseaudio(&pa);
     }
@@ -602,7 +487,7 @@ int main(int argc, char **argv) {
       dir_create_if_not_exists(temp_directory);
 
       if (deferred_clips_amount < DEFERRED_CLIPS_CAPACITY) {
-        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, atomic_load(&video_frame_counter), audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
+        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, x11.capture.buffer_index, audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
         pthread_t defer_video_thread;
         pthread_create(&defer_video_thread, NULL, thread_defer_video, dva);
         pthread_detach(defer_video_thread);
@@ -618,7 +503,7 @@ int main(int argc, char **argv) {
 
       free(temp_directory);
 
-      atomic_store(&video_frame_counter, 0);
+      x11.capture.buffer_index = 0;
 
       circular_array_clear(&video_ring_buffer);
 
@@ -627,8 +512,8 @@ int main(int argc, char **argv) {
         audio_capture.streams[i]->buffer_index = 0;
       }
       atomic_store(&running_flag, 1);
-      atomic_store(&video_frame_counter, 1);
-      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&video_params);
+      x11.capture.buffer_index = 0;
+      pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
 
       proceed_pulseaudio(&pa);
     }
@@ -643,7 +528,7 @@ int main(int argc, char **argv) {
 
       for (size_t i = 0; i < DEFERRED_CLIPS_CAPACITY; ++i) {
         if (deferred_clips[i].video_file == 0) continue;
-        char *video_filepath = render_deferred_video(&logger, temp_directory, opts, deferred_clips[i], screen_width, screen_height);
+        char *video_filepath = render_deferred_video(&logger, temp_directory, opts, deferred_clips[i], x11.capture.screen_width, x11.capture.screen_height);
 
 #ifdef FEATURE_SENDER
         if (!opts->locally) {
@@ -689,10 +574,7 @@ free_app:
   free_pa(&pa);
 
   // Closing
-  XShmDetach(display, &shminfo);
-  XDestroyImage(shared_image);
-  shmdt(shminfo.shmaddr);
-  shmctl(shminfo.shmid, IPC_RMID, 0);
+  free_x11(&x11);
 
   return 0;
 }

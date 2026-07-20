@@ -121,10 +121,6 @@ extern value_type value_types[OPTION_TYPE_LENGTH];
  */
 void print_usage(char *program);
 
-/** @brief Prints the version.
- */
-void print_version();
-
 /** @brief Parses flags.
  *  @param[in] args Array of arguments
  *  @return pointer to #options if succeed, NULL on error.
