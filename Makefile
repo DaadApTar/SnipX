@@ -9,8 +9,7 @@ PKGS = libnotify dbus-1
 VERSION := 0.0.0
 COMMIT := $(shell git rev-parse --short HEAD)
 
-CFLAGS := -Wall -Wextra -Iinclude -ggdb \
-           $(shell $(PKG_CONFIG) --cflags $(PKGS))
+CFLAGS := -Wall -Wextra -Iinclude -ggdb
 
 VERSION_FLAGS := -DAPP_VERSION=\"$(VERSION)\" \
 							   -DGIT_COMMIT=\"$(COMMIT)\"
@@ -47,6 +46,9 @@ TARGET_NAME := snipx
 SENDER_TARGET_NAME := snipx-sender
 
 include features.mk
+
+CFLAGS += $(shell $(PKG_CONFIG) --cflags $(PKGS))
+LDLIBS += $(shell $(PKG_CONFIG) --libs $(PKGS))
 
 TARGET := $(BUILD_DIR)/$(TARGET_NAME)
 

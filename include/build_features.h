@@ -31,4 +31,16 @@
 #define FEATURE_SENDER_STRING ANSI_RED"-sender "
 #endif
 
+#ifdef FEATURE_ZSTD
+#define FEATURE_ZSTD_STRING ANSI_GREEN"+zstd "
+#else
+#define FEATURE_ZSTD_STRING ANSI_RED"-zstd "
+#endif
+
+#ifdef FEATURE_LZ4
+#define FEATURE_LZ4_STRING ANSI_GREEN"+lz4 "
+#else
+#define FEATURE_LZ4_STRING ANSI_RED"-lz4 "
+#endif
+
 #endif

@@ -4,7 +4,7 @@
 #include "options.h"
 #include "stdio.h"
 
-#define FLAGS_SIZE sizeof(available_flags) / sizeof(available_flags[0])
+#define FLAGS_SIZE available_flags_size / sizeof(available_flags[0])
 
 void generate_zsh() {
   printf("#compdef snipx\n");

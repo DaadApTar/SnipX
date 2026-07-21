@@ -15,7 +15,7 @@ void print_version() {
   #endif
   printf("Built: %s %s\n", __DATE__, __TIME__);
   printf("Features: ");
-  puts(FEATURE_COLORS_STRING FEATURE_SENDER_STRING);
+  puts(FEATURE_COLORS_STRING FEATURE_SENDER_STRING FEATURE_ZSTD_STRING FEATURE_LZ4_STRING);
 #else
   #if !defined(APP_VERSION)
     #error APP_VERSION is not defined
