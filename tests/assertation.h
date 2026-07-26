@@ -1,6 +1,8 @@
 #ifndef ASSERTATION_H_
 #define ASSERTATION_H_
 
+#include <stdbool.h>
+
 typedef struct {
   int amount;
   int passed;
@@ -12,6 +14,6 @@ typedef struct {
 #define GREEN "\e[0;32m"
 
 void assert_int(test *test, int expected, int actual);
-void assert_done(test *test);
+bool assert_done(test *test);
 
 #endif

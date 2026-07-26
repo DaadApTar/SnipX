@@ -24,7 +24,7 @@
 
 #include "dynamic_circular_array.h"
 
-void test_circular_array() {
+bool test_circular_array() {
   test test = {.name = "circular array"};
   circular_array array;
   circular_array_init(&array, 5, sizeof(int));
@@ -41,7 +41,7 @@ void test_circular_array() {
   assert_int(&test, 9, *dst);
   dst = circular_array_get(&array, 0);
   assert_int(&test, 5, *dst);
-  assert_done(&test);
+  return assert_done(&test);
 }
 
 void test_Xscreenshot() {
@@ -127,7 +127,7 @@ void test_Xvideo() {
   //XCloseDisplay(display);
 }
 
-void test_option_value_comparation() {
+bool test_option_value_comparation() {
   test test = {.name = "option value comparation"};
   assert_int(&test, 1, get_value_type(UNKNOWN) == NONE);
   assert_int(&test, 1, get_value_type(SCREEN_NUMBER) == NUMBER);
@@ -141,10 +141,10 @@ void test_option_value_comparation() {
   assert_int(&test, 0, get_value_type(SCREEN_NUMBER) == STRING);
   assert_int(&test, 0, get_value_type(FPS) == NONE);
   assert_int(&test, 1, get_value_type(LOCALLY) == NONE);
-  assert_done(&test);
+  return assert_done(&test);
 }
 
-void test_parse_flag() {
+bool test_parse_flag() {
   test test = {.name = "flag parsing"};
   assert_int(&test, SCREEN_NUMBER, parse_flag("--screen"));
   assert_int(&test, SCREEN_NUMBER, parse_flag("-s"));
@@ -162,10 +162,10 @@ void test_parse_flag() {
 #ifdef FEATURE_SENDER
   assert_int(&test, LOCALLY, parse_flag("--local"));
 #endif
-  assert_done(&test);
+  return assert_done(&test);
 }
 
-void test_parse_value() {
+bool test_parse_value() {
   test test = {.name = "value parsing"};
   assert_int(&test, NUMBER, parse_value("34543"));
   assert_int(&test, NUMBER, parse_value("04343"));
@@ -174,10 +174,10 @@ void test_parse_value() {
   assert_int(&test, STRING, parse_value("0c4343"));
   assert_int(&test, STRING, parse_value("erter"));
   assert_int(&test, STRING, parse_value("345dsf"));
-  assert_done(&test);
+  return assert_done(&test);
 }
 
-void test_parse_flags() {
+bool test_parse_flags() {
   test test = {.name = "bunch of flags parsing"};
   char *args[] = {
     "--screen",
@@ -202,7 +202,7 @@ void test_parse_flags() {
   options *opts = parse_flags(args, sizeof(args) / sizeof(args[0]));
   if (opts == 0) {
     fprintf(stderr, RED"Failed to parse opts.\n"RESET);
-    return;
+    return false;
   }
   assert_int(&test, 0, opts->screen_number);
   assert_int(&test, 60, opts->fps);
@@ -215,17 +215,17 @@ void test_parse_flags() {
   assert_int(&test, 0, strcmp("0.0.0.0", opts->address));
   assert_int(&test, 1, opts->locally);
 #endif
-  assert_done(&test);
+  return assert_done(&test);
 }
 
-void test_parse_env_string() {
+bool test_parse_env_string() {
   test test = {.name = "Environment expanding test. Make sure to set environment variables on start."};
   assert_int(&test, 0, strcmp("Hello world", dir_expand_env("$ENV_TEST1 world")));
   assert_int(&test, 0, strcmp("123/test", dir_expand_env("$ENV_TEST2/test")));
-  assert_done(&test);
+  return assert_done(&test);
 }
 
-void test_dynamic_circular_array() {
+bool test_dynamic_circular_array() {
   test test = {.name = "Circular array test."};
   dynamic_circular_array array;
   int idata1 = 4345;
@@ -257,7 +257,7 @@ void test_dynamic_circular_array() {
   assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
   assert_int(&test, initial_capacity*8, array.capacity);
   assert_int(&test, 0, dynamic_circular_array_push(&array, &idata1, sizeof(idata1)));
-  assert_int(&test, 0, dynamic_circular_array_push(&array, cdata4, strlen(cdata4) + 1));
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata4, strlen(cdata4) + 1));
   printf("-----Final size test-----\n");
   assert_int(&test, 1, array.capacity <= 64);
   size_t size;
@@ -294,18 +294,19 @@ void test_dynamic_circular_array() {
   printf("-----Final size test-----\n");
   assert_int(&test, 1, array.capacity > 64 && array.capacity < 128);
   
-  assert_done(&test);
+  return assert_done(&test);
 }
 
 int main() {
-  test_circular_array();
+  bool result = 1;
+  result &= test_circular_array();
   //test_Xscreenshot();
   //test_Xvideo();
-  test_option_value_comparation();
-  test_parse_flag();
-  test_parse_value();
-  test_parse_flags();
-  test_parse_env_string();
-  test_dynamic_circular_array();
-  return 0;
+  result &= test_option_value_comparation();
+  result &= test_parse_flag();
+  result &= test_parse_value();
+  result &= test_parse_flags();
+  result &= test_parse_env_string();
+  result &= test_dynamic_circular_array();
+  return !result;
 }

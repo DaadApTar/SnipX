@@ -23,6 +23,8 @@
         libxext
         libpulseaudio
         dbus
+        zstd
+        lz4
       ];
 
       buildPhase = ''

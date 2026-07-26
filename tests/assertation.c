@@ -12,9 +12,10 @@ void assert_int(test* test, int expected, int actual) {
   }
 }
 
-void assert_done(test *test) {
+bool assert_done(test *test) {
   printf("Tests `%s` are finished with ", test->name);
   if (test->amount == test->passed) printf(GREEN);
   else printf(RED);
   printf("%d"RESET" passed tests out of %d.\n", test->passed, test->amount);
+  return test->amount == test->passed;
 }

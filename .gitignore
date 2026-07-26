@@ -5,6 +5,7 @@ build/
 *.mp4
 *.aac
 html/
-.*
+.*/
+.build-config
 flake.lock
 result

@@ -1,0 +1,70 @@
+stages:
+  - build
+  - test
+
+image: ubuntu:24.04
+
+variables:
+  DEBIAN_FRONTEND: noninteractive
+  GIT_SUBMODULE_STRATEGY: recursive
+  APT_CACHE_DIR: "${CI_PROJECT_DIR}/.apt-cache"
+
+.apt_base_deps: &apt_base_deps
+  - mkdir -p "${APT_CACHE_DIR}/archives/partial"
+  - echo 'Dir::Cache::Archives "'"${APT_CACHE_DIR}/archives"'";' > /etc/apt/apt.conf.d/99cache
+  - apt-get update -qq
+  - apt-get install -y -qq --no-install-recommends
+    build-essential
+    make
+    pkg-config
+    libx11-dev
+    libxinerama-dev
+    libxext-dev
+    libpulse-dev
+    libdbus-1-dev
+    libzstd-dev
+    liblz4-dev
+
+.apt_cache: &apt_cache
+  key: apt-cache-v1
+  paths:
+    - .apt-cache/archives/*.deb
+
+build:sender:
+  stage: build
+  cache:
+    <<: *apt_cache
+  before_script:
+    - *apt_base_deps
+    - apt-get install -y -qq --no-install-recommends golang-go
+  script:
+    - make -B
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+build:no-sender:
+  stage: build
+  cache:
+    <<: *apt_cache
+  before_script:
+    - *apt_base_deps
+  script:
+    - SENDER=0 make -B
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+test:
+  stage: test
+  needs:
+    - build:sender
+  cache:
+    <<: *apt_cache
+  before_script:
+    - *apt_base_deps
+    - apt-get install -y -qq --no-install-recommends golang-go
+  script:
+    - make test
