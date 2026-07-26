@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "assertation.h"
+#include <ctype.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -20,6 +21,8 @@
 #include "circular_array.h"
 #include "options.h"
 #include "directory_manager.h"
+
+#include "dynamic_circular_array.h"
 
 void test_circular_array() {
   test test = {.name = "circular array"};
@@ -222,6 +225,78 @@ void test_parse_env_string() {
   assert_done(&test);
 }
 
+void test_dynamic_circular_array() {
+  test test = {.name = "Circular array test."};
+  dynamic_circular_array array;
+  int idata1 = 4345;
+  const char *cdata2 = "12345345646456564";
+  unsigned long uldata3 = 454353342;
+  const char *cdata4 = "1234567890123456789012345678901234567890";
+  size_t initial_capacity = 8;
+  printf("--------Resizing--------\n");
+  assert_int(&test, 0, dynamic_circular_array_init(&array, initial_capacity, 4));
+  assert_int(&test, initial_capacity, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &idata1, sizeof(idata1)));
+  assert_int(&test, initial_capacity, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*4, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &uldata3, sizeof(uldata3)));
+  assert_int(&test, initial_capacity*8, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, &idata1, sizeof(idata1)));
+  assert_int(&test, 0, dynamic_circular_array_push(&array, cdata4, strlen(cdata4) + 1));
+  printf("-----Final size test-----\n");
+  assert_int(&test, 1, array.capacity <= 64);
+  size_t size;
+  void *got_data;
+  printf("------Getting data------\n");
+  got_data = dynamic_circular_array_get(&array, array.last_index-3, &size);
+  assert_int(&test, sizeof(uldata3), size);
+  assert_int(&test, uldata3, *(unsigned long *)got_data);
+  free(got_data);
+  got_data = dynamic_circular_array_get(&array, array.last_index-2, &size);
+  assert_int(&test, sizeof(uldata3), size);
+  assert_int(&test, uldata3, *(unsigned long *)got_data);
+  free(got_data);
+  got_data = dynamic_circular_array_get(&array, array.last_index-1, &size);
+  assert_int(&test, sizeof(idata1), size);
+  assert_int(&test, idata1, *(int *)got_data);
+  free(got_data);
+  got_data = dynamic_circular_array_get(&array, array.last_index, &size);
+  char *string = malloc(size);
+  strcpy(string, got_data);
+  assert_int(&test, strlen(cdata4) + 1, size);
+  assert_int(&test, 0, strcmp(cdata4, string));
+  free(got_data);
+  free(string);
+
+  printf("------Resizing again------\n");
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*12, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2)));
+  assert_int(&test, initial_capacity*12, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata2, strlen(cdata2) + 1));
+  assert_int(&test, initial_capacity*12, array.capacity);
+  assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata4, strlen(cdata4) + 1));
+  printf("-----Final size test-----\n");
+  assert_int(&test, 1, array.capacity > 64 && array.capacity < 128);
+  
+  assert_done(&test);
+}
+
 int main() {
   test_circular_array();
   //test_Xscreenshot();
@@ -231,5 +306,6 @@ int main() {
   test_parse_value();
   test_parse_flags();
   test_parse_env_string();
+  test_dynamic_circular_array();
   return 0;
 }
