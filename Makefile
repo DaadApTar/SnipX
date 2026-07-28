@@ -4,7 +4,7 @@ CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
 
-PKGS = libnotify dbus-1
+PKGS = dbus-1
 
 VERSION := 0.0.0
 COMMIT := $(shell git rev-parse --short HEAD)
