@@ -7,7 +7,7 @@ PKG_CONFIG ?= pkg-config
 PKGS = dbus-1
 
 VERSION := 0.0.0
-COMMIT := $(shell git rev-parse --short HEAD)
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 CFLAGS := -Wall -Wextra -Iinclude -ggdb
 
@@ -62,7 +62,7 @@ $(TARGET): $(OBJ_FILES)
 	@echo "SENDER=$(SENDER)" > $(BUILD_CONFIG)
 
 $(SENDER_TARGET):
-ifeq ($(SENDER), true)
+ifeq ($(SENDER), 1)
 	cd $(SNIPX_SENDER_DIR) && go build -o ../../$(BUILD_DIR)
 endif
 
@@ -92,7 +92,7 @@ $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 -include $(BUILD_CONFIG)
 
 # ===== Install =====
-ifeq ($(SENDER), true)
+ifeq ($(SENDER), 1)
 install: $(TARGET) $(SENDER_TARGET)
 else
 install: $(TARGET)
@@ -103,7 +103,7 @@ endif
 	mkdir -p $(BASH_COMPLETION_DIR)
 	$(TARGET) --autocompletion zsh > $(ZSH_COMPLETION_DIR)/_snipx
 	$(TARGET) --autocompletion bash > $(BASH_COMPLETION_DIR)/snipx
-ifeq ($(SENDER), true)
+ifeq ($(SENDER), 1)
 	cp $(SENDER_TARGET) $(INSTALL_DIR)
 endif
 	@echo "Installed to $(INSTALL_DIR)"

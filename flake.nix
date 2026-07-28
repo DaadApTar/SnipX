@@ -28,17 +28,28 @@
       ];
 
       buildPhase = ''
-        make SENDER=${if sender then "true" else "false"}
+        make SENDER=${if sender then "1" else "0"}
       '';
 
       installPhase = ''
-        make install SENDER=${if sender then "true" else "false"} PREFIX=$out
+        make install SENDER=${if sender then "1" else "0"} PREFIX=$out
       '';
     };
   in {
     packages.${system} = {
       default = mkSnipx true;
       no-sender = mkSnipx false;
+    };
+
+    devShells.${system} = {
+      default = pkgs.mkShell {
+        inputsFromLayout = [ ];
+        inputsFrom = [ self.packages.${system}.default ];
+        packages = with pkgs; [ go ];
+      };
+      no-sender = pkgs.mkShell {
+        inputsFrom = [ self.packages.${system}.no-sender ];
+      };
     };
   };
 }

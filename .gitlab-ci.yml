@@ -8,12 +8,14 @@ variables:
   DEBIAN_FRONTEND: noninteractive
   GIT_SUBMODULE_STRATEGY: recursive
   APT_CACHE_DIR: "${CI_PROJECT_DIR}/.apt-cache"
+  NIX_CONFIG: "experimental-features = nix-command flakes"
 
 .apt_base_deps: &apt_base_deps
   - mkdir -p "${APT_CACHE_DIR}/archives/partial"
   - echo 'Dir::Cache::Archives "'"${APT_CACHE_DIR}/archives"'";' > /etc/apt/apt.conf.d/99cache
   - apt-get update -qq
   - apt-get install -y -qq --no-install-recommends
+    ca-certificates
     build-essential
     make
     pkg-config
@@ -68,3 +70,21 @@ test:
     - apt-get install -y -qq --no-install-recommends golang-go
   script:
     - make test
+
+build:nix-no-sender:
+  stage: build
+  image: nixos/nix:2.24.9
+  script:
+    - nix build .#no-sender -o result-no-sender --print-build-logs
+  artifacts:
+    paths:
+      - result-no-sender/
+    expire_in: 1 hour
+
+test:nix:
+  stage: test
+  image: nixos/nix:2.24.9
+  needs:
+    - build:nix-no-sender
+  script:
+    - nix develop .#no-sender -c make test
