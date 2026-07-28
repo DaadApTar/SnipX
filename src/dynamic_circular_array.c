@@ -62,7 +62,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   if (!array) return -1;
   if (!array->data) return -1;
   if (array->items_max == 0) return -1;
-  // Check if params are wrong.
+  // Check if params are invalid.
   if (size == 0) return -1;
   if (!data) return -1;
 

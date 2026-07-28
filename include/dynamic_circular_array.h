@@ -1,4 +1,5 @@
-/** This wild data structure is inteded to be a replacement for circular array for compressed data.
+/** @file dynamic_circular_array.h
+ *  This wild data structure is inteded to be a replacement for circular array for compressed data.
  *  This array stores chunks of undefined-sized data continuously in char* array. It also stores
  *  circular array of indices to chunks and counts amount of elements inside.
  *
@@ -16,9 +17,8 @@
  *    we will copy the data in straightened buffer. Since getting is less likely to be time dependent operation
  *    (it's used only on dumping), it's affordable to be this way.
  */
-
-#ifndef DYNAMIC_CIRUCLAR_ARRAY_H_
-#define DYNAMIC_CIRUCLAR_ARRAY_H_
+#ifndef DYNAMIC_CIRCULAR_ARRAY_H_
+#define DYNAMIC_CIRCULAR_ARRAY_H_
 
 #include "circular_array.h"
 #include <stddef.h>

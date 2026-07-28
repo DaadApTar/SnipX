@@ -23,6 +23,14 @@
 #include "directory_manager.h"
 
 #include "dynamic_circular_array.h"
+#include "compression.h"
+
+#ifdef FEATURE_ZSTD
+#include <zstd.h>
+#endif
+#ifdef FEATURE_LZ4
+#include <lz4.h>
+#endif
 
 bool test_circular_array() {
   test test = {.name = "circular array"};
@@ -293,7 +301,74 @@ bool test_dynamic_circular_array() {
   assert_int(&test, 0, dynamic_circular_array_push(&array, (void *)cdata4, strlen(cdata4) + 1));
   printf("-----Final size test-----\n");
   assert_int(&test, 1, array.capacity > 64 && array.capacity < 128);
+
+  dynamic_circular_array_free(&array);
   
+  return assert_done(&test);
+}
+
+bool test_compression() {
+  test test = {.name = "Compression test."};
+
+  assert_int(&test, COMPRESSION_NONE, dispatch_string(NULL));
+  assert_int(&test, COMPRESSION_NONE, dispatch_string("none"));
+  #ifdef FEATURE_ZSTD
+  assert_int(&test, COMPRESSION_ZSTD, dispatch_string("ZSTD"));
+  assert_int(&test, COMPRESSION_ZSTD, dispatch_string("zstd"));
+  #else
+  assert_int(&test, COMPRESSION_INVALID, dispatch_string("ZSTD"));
+  assert_int(&test, COMPRESSION_INVALID, dispatch_string("zstd"));
+  #endif
+  #ifdef FEATURE_LZ4
+  assert_int(&test, COMPRESSION_LZ4, dispatch_string("LZ4"));
+  assert_int(&test, COMPRESSION_LZ4, dispatch_string("lz4"));
+  #else
+  assert_int(&test, COMPRESSION_INVALID, dispatch_string("LZ4"));
+  assert_int(&test, COMPRESSION_INVALID, dispatch_string("lz4"));
+  #endif
+
+  size_t size = 1920*1080*4;
+  assert_int(&test, size, get_compression_bound(COMPRESSION_NONE, size));
+  #ifdef FEATURE_ZSTD
+  assert_int(&test, ZSTD_COMPRESSBOUND(size), get_compression_bound(COMPRESSION_ZSTD, size));
+  #endif
+  #ifdef FEATURE_LZ4
+  assert_int(&test, LZ4_COMPRESSBOUND(size), get_compression_bound(COMPRESSION_LZ4, size));
+  #endif
+
+  assert_int(&test, *(size_t *)none_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_NONE));
+  #ifdef FEATURE_ZSTD
+  assert_int(&test, *(size_t *)zstd_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_ZSTD));
+  #endif
+  #ifdef FEATURE_LZ4
+  assert_int(&test, *(size_t *)lz4_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_LZ4));
+  #endif
+
+  char data1[] = {
+    0b10101010,
+    0b01010101
+  };
+  char data2[] = {
+    0b11111111,
+    0b11111111
+  };
+  char result_data[2];
+  char expected[] = {
+    0b01010101,
+    0b10101010
+  };
+
+  xor_delta(result_data, data1, data2, sizeof(data1));
+  assert_int(&test, 0, memcmp(result_data, expected, 2));
+
+  unsigned int data3 = 0xFADE6969;
+  unsigned int data4 = 0xF1DE1337;
+  unsigned int result_data2;
+  unsigned int expected2 = 0xB007A5E;
+
+  xor_delta((char *)&result_data2, (char *)&data3, (char *)&data4, 4);
+  assert_int(&test, 0, memcmp(&result_data2, &expected2, 4));
+
   return assert_done(&test);
 }
 
@@ -308,5 +383,6 @@ int main() {
   result &= test_parse_flags();
   result &= test_parse_env_string();
   result &= test_dynamic_circular_array();
+  result &= test_compression();
   return !result;
 }

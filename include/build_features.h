@@ -1,9 +1,15 @@
-#ifndef BUILD_FEATURES_H_
-#define BUILD_FEATURES_H_
-/** @brief Features macroses
+/** @file build_features.h
  *  Actually I'm not sure if it will become necessary, but I feel like I don't want to
  *  have this huge mess of macroses in other files.
+ *
+ *  Available features:
+ *  - FEATURE_COLORS
+ *  - FEATURE_SENDER
+ *  - FEATURE_ZSTD
+ *  - FEATURE_LZ4
  */
+#ifndef BUILD_FEATURES_H_
+#define BUILD_FEATURES_H_
 
 #ifdef FEATURE_COLORS
 
