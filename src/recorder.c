@@ -25,7 +25,7 @@ void *thread_video_capturing(void *arg) {
       log_print(params->logger, LOG_ERROR, "Cannot get image.\n");
       pthread_mutex_unlock(&lock);
     }
-    circular_array_push(params->capture.ring_buffer, params->shared_image->data, i);
+    dynamic_circular_array_push(params->capture.ring_buffer, params->shared_image->data, params->capture.framesize);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -41,7 +41,6 @@ void *thread_video_capturing(void *arg) {
   }
   if (!atomic_load(&running_flag)) {
     pthread_mutex_lock(&lock);
-    params->capture.buffer_index = i;
     log_print(params->logger, LOG_INFO, "Video thread has been closed.\n");
     pthread_mutex_unlock(&lock);
   }

@@ -11,7 +11,7 @@
 #define DELAY_US 10000
 #define BYTES_PER_MB (1024 * 1024)
 
-int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path, size_t mbps) {
+int dump_media_file(dynamic_circular_array *ring_buffer, size_t buffer_index, char *path, size_t mbps) {
   size_t start = 0;
   if (buffer_index > ring_buffer->capacity) start = buffer_index % ring_buffer->capacity;
   FILE *file = fopen(path, "wb");
@@ -26,10 +26,11 @@ int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path
   clock_gettime(CLOCK_MONOTONIC, &t0);
 
   size_t total_written = 0;
-  for (size_t i = 0; i < ring_buffer->length; ++i) {
-    void *d = circular_array_get(ring_buffer, start+i);
-    fwrite(d, ring_buffer->item_size, 1, file);
-    total_written += ring_buffer->item_size;
+  for (size_t i = 0; i < ring_buffer->items_length; ++i) {
+    size_t framesize = 0;
+    void *d = dynamic_circular_array_get(ring_buffer, start+i, &framesize);
+    fwrite(d, framesize, 1, file);
+    total_written += framesize;
 
     if (bytes_per_us == 0) continue;
 
@@ -51,7 +52,9 @@ int dump_media_file(circular_array *ring_buffer, size_t buffer_index, char *path
   return 0;
 }
 
-video_components defer_video(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps) {
+video_components defer_video(dynamic_circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps) {
+  (void) streams;
+  (void) streams_length;
   video_components components = {0};
   components.video_file = (char *)malloc(PATH_MAX);
   snprintf(components.video_file, PATH_MAX, "%s/%zu.raw", temp_directory, group);
@@ -61,14 +64,14 @@ video_components defer_video(circular_array *video_buffer, size_t buffer_index, 
     audio_stream *stream = streams[i];
     char *audio_filename = (char *)malloc(PATH_MAX);
     snprintf(audio_filename, PATH_MAX, "%s/%zu_%zu.raw", temp_directory, group, i);
-    dump_media_file(&stream->ring_buffer, stream->buffer_index, audio_filename, mbps);
+    dump_media_file(&stream->ring_buffer, stream->ring_buffer.last_index, audio_filename, mbps);
     components.audio_files[components.audio_files_length++] = audio_filename;
   }
 
   return components;
 }
 
-defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps, video_components *components) {
+defer_video_args *alloc_defer_video_args(dynamic_circular_array *video_buffer, size_t buffer_index, audio_stream **streams, size_t streams_length, char *temp_directory, size_t group, size_t mbps, video_components *components) {
   defer_video_args *video_args = malloc(sizeof(defer_video_args));
 
   if (!video_args) {
@@ -87,7 +90,7 @@ defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t bu
     goto fail;
   }
 
-  video_args->video_buffer = circular_array_dup(video_buffer);
+  video_args->video_buffer = dynamic_circular_array_dup(video_buffer);
   if (!video_args->video_buffer) {
     goto fail;
   }
@@ -99,12 +102,11 @@ defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t bu
       goto fail;
     }
 
-    circular_array *tmp = circular_array_dup(&streams[i]->ring_buffer);
+    dynamic_circular_array *tmp = dynamic_circular_array_dup(&streams[i]->ring_buffer);
     if (!tmp) {
       goto fail;
     }
     video_args->streams[i]->ring_buffer = *tmp;
-    video_args->streams[i]->buffer_index = streams[i]->buffer_index;
     free(tmp);
   }
 
@@ -113,12 +115,12 @@ defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t bu
   fail:
   if (video_args->streams) {
     for (size_t i = 0; i < streams_length; ++i) {
-      circular_array_free(&video_args->streams[i]->ring_buffer);
+      dynamic_circular_array_free(&video_args->streams[i]->ring_buffer);
       free(video_args->streams[i]);
     }
     free(video_args->streams);
   }
-  circular_array_free(video_args->video_buffer);
+  dynamic_circular_array_free(video_args->video_buffer);
   free(video_args->video_buffer);
   free(video_args);
 
@@ -128,9 +130,9 @@ defer_video_args *alloc_defer_video_args(circular_array *video_buffer, size_t bu
 void free_defer_video_args(defer_video_args *args) {
   if (!args) return;
   free(args->temp_directory);
-  circular_array_free(args->video_buffer);
+  dynamic_circular_array_free(args->video_buffer);
   for (size_t i = 0; i < args->streams_length; ++i) {
-    circular_array_free(&args->streams[i]->ring_buffer);
+    dynamic_circular_array_free(&args->streams[i]->ring_buffer);
     free(args->streams[i]);
   }
   free(args->streams);

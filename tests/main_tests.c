@@ -336,12 +336,12 @@ bool test_compression() {
   assert_int(&test, LZ4_COMPRESSBOUND(size), get_compression_bound(COMPRESSION_LZ4, size));
   #endif
 
-  assert_int(&test, *(size_t *)none_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_NONE));
+  assert_int(&test, *(size_t *)none_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_NONE));
   #ifdef FEATURE_ZSTD
-  assert_int(&test, *(size_t *)zstd_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_ZSTD));
+  assert_int(&test, *(size_t *)zstd_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_ZSTD));
   #endif
   #ifdef FEATURE_LZ4
-  assert_int(&test, *(size_t *)lz4_wrapper, *(size_t *)dispatch_algorithm(COMPRESSION_LZ4));
+  assert_int(&test, *(size_t *)lz4_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_LZ4));
   #endif
 
   char data1[] = {

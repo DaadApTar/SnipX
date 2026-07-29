@@ -21,17 +21,31 @@ compression_algorithm dispatch_string(char *compression) {
   return COMPRESSION_INVALID;
 }
 
-algorithm_wrapper dispatch_algorithm(compression_algorithm algorithm) {
+compression_wrapper dispatch_compression_algorithm(compression_algorithm algorithm) {
   switch (algorithm) {
-  case COMPRESSION_NONE: return none_wrapper;
+  case COMPRESSION_NONE: return none_compression_wrapper;
 #ifdef FEATURE_ZSTD
-  case COMPRESSION_ZSTD: return zstd_wrapper;
+  case COMPRESSION_ZSTD: return zstd_compression_wrapper;
 #endif // FEATURE_ZSTD
 #ifdef FEATURE_LZ4
-  case COMPRESSION_LZ4: return lz4_wrapper;
+  case COMPRESSION_LZ4: return lz4_compression_wrapper;
 #endif // FEATURE_LZ4
   case COMPRESSION_INVALID:
-  default: return none_wrapper;
+  default: return none_compression_wrapper;
+  }
+}
+
+decompression_wrapper dispatch_decompression_algorithm(compression_algorithm algorithm) {
+  switch (algorithm) {
+  case COMPRESSION_NONE: return none_decompression_wrapper;
+#ifdef FEATURE_ZSTD
+  case COMPRESSION_ZSTD: return zstd_decompression_wrapper;
+#endif // FEATURE_ZSTD
+#ifdef FEATURE_LZ4
+  case COMPRESSION_LZ4: return lz4_decompression_wrapper;
+#endif // FEATURE_LZ4
+  case COMPRESSION_INVALID:
+  default: return none_decompression_wrapper;
   }
 }
 
@@ -76,21 +90,38 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size) {
 // ================COMPRESSION WRAPPERS================
 
 #ifdef FEATURE_ZSTD
-size_t zstd_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
+size_t zstd_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
   return ZSTD_compress(dst, dst_capacity, src, src_size, level);
+}
+
+size_t zstd_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size) {
+  return ZSTD_decompress(dst, dst_capacity, src, src_size);
 }
 #endif // FEATURE_ZSTD
 
 #ifdef FEATURE_LZ4
-size_t lz4_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
+size_t lz4_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
   (void) level; // LZ4 default compression does not take compression level.
   // TODO: consider adding lz4hc as a compression algorithm.
   return LZ4_compress_default(src, dst, src_size, dst_capacity);
 }
+
+size_t lz4_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size) {
+  return LZ4_decompress_safe(src, dst, src_size, dst_capacity);
+}
 #endif // FEATURE_LZ4
 
-size_t none_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
+size_t none_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
   (void) level;
+  size_t result = 0;
+  if (dst_capacity <= src_size) result = dst_capacity;
+  else result = src_size;
+  memcpy(dst, src, result);
+
+  return result;
+}
+
+size_t none_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size) {
   size_t result = 0;
   if (dst_capacity <= src_size) result = dst_capacity;
   else result = src_size;

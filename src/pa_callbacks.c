@@ -24,11 +24,10 @@ void read_cb(pa_stream *s, size_t nbytes, void *userdata) {
   pa_stream_peek(s, &data, &nbytes);
 
   if (data && nbytes > 0) {
-    circular_array_push(&info->ring_buffer, (void *)data, info->buffer_index);
+    dynamic_circular_array_push(&info->ring_buffer, (void *)data, info->fragsize);
   }
 
   pa_stream_drop(s);
-  info->buffer_index++;
 }
 
 void context_state_cb(pa_context *c, void *userdata) {
@@ -76,7 +75,7 @@ void source_info_list_cb(pa_context *c, const pa_source_info *i, int eol, void *
         };
         pa_buffer_attr attr = {
             .maxlength = (uint32_t)-1,
-            .fragsize = state->capture.fragsize,
+            .fragsize = state->capture.streams[iterator]->fragsize,
             .tlength = (uint32_t)-1,
             .minreq = (uint32_t)-1,
             .prebuf = (uint32_t)-1,

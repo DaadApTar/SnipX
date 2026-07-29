@@ -22,6 +22,7 @@
 #include "notification.h"
 #include <version.h>
 #include "x11.h"
+#include "compression.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -60,7 +61,7 @@
  *  @param[in] length length of video in seconds
  *  @param[in] file_path path to file to render.
  */
-void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
+void render_sound(logger *logger, size_t buffer_index, dynamic_circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
   uint8_t *audio;
 
   ffmpeg *sound = ffmpeg_init_sound(file_path);
@@ -71,8 +72,11 @@ void render_sound(logger *logger, size_t buffer_index, circular_array *ring_buff
 
   log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
   for (size_t i = audio_start; i < buffer_index; ++i) {
-    audio = circular_array_get(ring_buffer, i);
-    ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps));
+    size_t size = 0;
+    audio = dynamic_circular_array_get(ring_buffer, i, &size);
+    /* ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps)); */
+    ffmpeg_push_frame(sound, audio, size);
+    free(audio);
   }
 
   ffmpeg_close(sound);
@@ -100,7 +104,7 @@ char *render_video(logger *logger, char *temp_directory,
     if (audio_capture->streams[i]->stream == 0) continue;
     char audio_filename[PATH_MAX];
     snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
-    render_sound(logger, audio_capture->streams[i]->buffer_index,
+    render_sound(logger, audio_capture->streams[i]->ring_buffer.last_index,
                   &audio_capture->streams[i]->ring_buffer, opts->fps,
                   opts->length, audio_filename);
     sound_files[sound_files_index++] = strdup(audio_filename);
@@ -115,16 +119,18 @@ char *render_video(logger *logger, char *temp_directory,
   snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
 #endif
 
-  uint32_t *frame;
+  void *frame;
 
   ffmpeg *video = ffmpeg_init_video(video_filename, video_capture.screen_width, video_capture.screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
-  int video_start = video_capture.buffer_index - opts->fps * opts->length;
+  int video_start = video_capture.ring_buffer->last_index - opts->fps * opts->length;
   if (video_start < 0) video_start = 0;
 
   log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-  for (size_t i = video_start; i < video_capture.buffer_index; ++i) {
-    frame = circular_array_get(video_capture.ring_buffer, i);
-    ffmpeg_push_frame(video, frame, sizeof(uint32_t) * video_capture.screen_width * video_capture.screen_height);
+  for (size_t i = video_start; i < video_capture.ring_buffer->last_index; ++i) {
+    size_t framesize = 0;
+    frame = dynamic_circular_array_get(video_capture.ring_buffer, i, &framesize);
+    ffmpeg_push_frame(video, frame, framesize);
+    free(frame);
   }
 
   ffmpeg_close(video);
@@ -247,6 +253,15 @@ int main(int argc, char **argv) {
     else return 0;
   }
 
+  compression_algorithm algorithm = dispatch_string(opts->compression);
+  if (algorithm == COMPRESSION_INVALID) {
+    log_print(&logger, LOG_ERROR, "Unknown compression algorithm `%s`\n", opts->compression);
+    exit(1);
+  }
+  log_print(&logger, LOG_DEBUG, "Compression algorithm: `%s`\n", opts->compression == 0 ? NONE_STRING : opts->compression);
+  compression_wrapper compression = dispatch_compression_algorithm(algorithm);
+  decompression_wrapper decompression = dispatch_decompression_algorithm(algorithm);
+
   dbus_conn_new(&logger);
 
   dir_create_if_not_exists(dir_default_or_env(DEFAULT_SNIPX_DIR, ENV_SNIPX_DIR));
@@ -324,18 +339,22 @@ int main(int argc, char **argv) {
 
   // Initialise ring buffers.
 
-  circular_array video_ring_buffer;
-  circular_array desktop_audio_ring_buffer;
-  circular_array mic_audio_ring_buffer;
+  dynamic_circular_array video_ring_buffer;
+  dynamic_circular_array desktop_audio_ring_buffer;
+  dynamic_circular_array mic_audio_ring_buffer;
 
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  circular_array_init(&video_ring_buffer, opts->fps * opts->length, x11.shared_image->bytes_per_line * x11.shared_image->height);
+  // TODO: reconsider sizes when compression is added.
+  dynamic_circular_array_init(&video_ring_buffer, get_compression_bound(algorithm, x11.shared_image->bytes_per_line * x11.shared_image->height) / 2 * opts->fps * opts->length, opts->fps * opts->length);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
-  circular_array_init(&desktop_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
-  circular_array_init(&mic_audio_ring_buffer, opts->fps * opts->length, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps));
+  dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * opts->fps * opts->length, opts->fps * opts->length);
+  dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * opts->fps * opts->length, opts->fps * opts->length);
 
   x11.capture.ring_buffer = &video_ring_buffer;
   x11.capture.framerate = opts->fps;
+  x11.capture.compression = compression;
+  x11.capture.decompression = decompression;
+  x11.capture.framesize = x11.shared_image->bytes_per_line * x11.shared_image->height;
 
   // Initialise pulseaudio
   log_print(&logger, LOG_INFO, "Preparing PulseAudio.\n");
@@ -344,17 +363,17 @@ int main(int argc, char **argv) {
       .index = opts->desktop_sound_monitor,
       .name = "Desktop Audio",
       .ring_buffer = desktop_audio_ring_buffer,
+      .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
   };
 
   audio_stream mic_stream = {
       .index = opts->mic_sound_monitor,
       .name = "Mic/Aux",
       .ring_buffer = mic_audio_ring_buffer,
-  };
-
-  audio_capture audio_capture = {
       .fragsize = SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps),
   };
+
+  audio_capture audio_capture;
 
   audio_capture.streams[audio_capture.length++] = &desktop_stream;
   if (opts->mic_sound_monitor != -1)
@@ -460,16 +479,12 @@ int main(int argc, char **argv) {
       free(video_filepath);
       free(temp_directory);
 
-      x11.capture.buffer_index = 0;
-
-      circular_array_clear(&video_ring_buffer);
+      dynamic_circular_array_clear(&video_ring_buffer);
 
       for (size_t i = 0; i < audio_capture.length; ++i) {
-        circular_array_clear(&audio_capture.streams[i]->ring_buffer);
-        audio_capture.streams[i]->buffer_index = 0;
+        dynamic_circular_array_clear(&audio_capture.streams[i]->ring_buffer);
       }
       atomic_store(&running_flag, 1);
-      x11.capture.buffer_index = 0;
       pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
 
       proceed_pulseaudio(&pa);
@@ -487,7 +502,7 @@ int main(int argc, char **argv) {
       dir_create_if_not_exists(temp_directory);
 
       if (deferred_clips_amount < DEFERRED_CLIPS_CAPACITY) {
-        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, x11.capture.buffer_index, audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
+        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, x11.capture.ring_buffer->last_index, audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
         pthread_t defer_video_thread;
         pthread_create(&defer_video_thread, NULL, thread_defer_video, dva);
         pthread_detach(defer_video_thread);
@@ -503,16 +518,12 @@ int main(int argc, char **argv) {
 
       free(temp_directory);
 
-      x11.capture.buffer_index = 0;
-
-      circular_array_clear(&video_ring_buffer);
+      dynamic_circular_array_clear(&video_ring_buffer);
 
       for (size_t i = 0; i < audio_capture.length; ++i) {
-        circular_array_clear(&audio_capture.streams[i]->ring_buffer);
-        audio_capture.streams[i]->buffer_index = 0;
+        dynamic_circular_array_clear(&audio_capture.streams[i]->ring_buffer);
       }
       atomic_store(&running_flag, 1);
-      x11.capture.buffer_index = 0;
       pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
 
       proceed_pulseaudio(&pa);
@@ -567,9 +578,9 @@ free_app:
   log_close(&logger);
 
   // Freeing ring buffers
-  circular_array_free(&video_ring_buffer);
-  circular_array_free(&desktop_audio_ring_buffer);
-  circular_array_free(&mic_audio_ring_buffer);
+  dynamic_circular_array_free(&video_ring_buffer);
+  dynamic_circular_array_free(&desktop_audio_ring_buffer);
+  dynamic_circular_array_free(&mic_audio_ring_buffer);
 
   free_pa(&pa);
 

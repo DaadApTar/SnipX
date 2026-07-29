@@ -154,6 +154,7 @@ void dynamic_circular_array_free(dynamic_circular_array *array) {
 void dynamic_circular_array_clear(dynamic_circular_array *array) {
   circular_array_clear(&array->indices);
   array->items_length = 0;
+  array->last_index = 0;
   memset(array->data, 0, array->capacity);
 }
 
@@ -170,6 +171,7 @@ dynamic_circular_array *dynamic_circular_array_dup(dynamic_circular_array *src) 
     return NULL;
   }
   res->indices = *(circular_array*)tmp;
+  res->last_index = src->last_index;
   memccpy(res->data, src->data, res->capacity, src->capacity);
 
   return res;

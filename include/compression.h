@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "build_features.h"
 
+// TODO: introduce default compression
 #define ZSTD_STRING "zstd"
 #define LZ4_STRING "lz4"
 #define NONE_STRING "none"
@@ -20,7 +21,7 @@ typedef enum {
   COMPRESSION_INVALID
 } compression_algorithm;
 
-/** @brief Algorithm wrapper.
+/** @brief Compression algorithm wrapper.
  *  @param[out] dst allocated compression destination.
  *  @param[in] dst_capacity size of dst.
  *  @param[in] src source data.
@@ -28,7 +29,16 @@ typedef enum {
  *  @param[in] level compression level.
  *  @return size of new data.
  */
-typedef size_t (*algorithm_wrapper)(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+typedef size_t (*compression_wrapper)(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+
+/** @brief Decompression algorithm wrapper.
+ *  @param[out] dst allocated compression destination.
+ *  @param[in] dst_capacity size of dst.
+ *  @param[in] src source data.
+ *  @param[in] src_size size of src.
+ *  @return size of new data.
+ */
+typedef size_t (*decompression_wrapper)(void *dst, size_t dst_capacity, void *src, size_t src_size);
 
 /** @brief Dispatches string to relative wrapper.
  *  @param[in] compression string given by the user.
@@ -36,11 +46,17 @@ typedef size_t (*algorithm_wrapper)(void *dst, size_t dst_capacity, void *src, s
  */
 compression_algorithm dispatch_string(char *compression);
 
-/** @brief Dispatches string to relative wrapper.
+/** @brief Dispatches enum to relative wrapper.
  *  @param[in] algorithm compression algorithm.
  *  @return Wrapper around compression algorithm on success. On error, NULL is returned.
  */
-algorithm_wrapper dispatch_algorithm(compression_algorithm algorithm);
+compression_wrapper dispatch_compression_algorithm(compression_algorithm algorithm);
+
+/** @brief Dispatches enum to relative wrapper.
+ *  @param[in] algorithm compression algorithm.
+ *  @return Wrapper around decompression algorithm on success. On error, NULL is returned.
+ */
+decompression_wrapper dispatch_decompression_algorithm(compression_algorithm algorithm);
 
 /** @param[in] algorithm compression algorithm.
  *  @param[in] src_size size of src.
@@ -60,26 +76,42 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size);
 
 #ifdef FEATURE_ZSTD
 
-/** @brief ZSTD wrapper.
- *  @copydoc algorithm_wrapper
+/** @brief ZSTD compression wrapper.
+ *  @copydoc compression_wrapper
  */
-size_t zstd_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+size_t zstd_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+
+/** @brief ZSTD compression wrapper.
+ *  @copydoc decompression_wrapper
+ */
+size_t zstd_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size);
 
 #endif // FEATURE_ZSTD
 
 #ifdef FEATURE_LZ4
 
 /** @brief LZ4 wrapper.
- *  @copydoc algorithm_wrapper
+ *  @copydoc compresion_wrapper
  */
-size_t lz4_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+size_t lz4_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+
+/** @brief LZ4 compression wrapper.
+ *  @copydoc decompression_wrapper
+ */
+size_t lz4_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size);
 
 #endif // FEATURE_LZ4
 
 /** @brief Wrapper around no algorithm.
- *  @copydoc algorithm_wrapper
+ *  @copydoc compression_wrapper
  *  @note returned data == initial data (copied for the sake of consistency) and initial size == output size.
  */
-size_t none_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+size_t none_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level);
+
+/** @brief ZSTD compression wrapper.
+ *  @copydoc decompression_wrapper
+ *  @note returned data == initial data (copied for the sake of consistency) and initial size == output size.
+ */
+size_t none_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size);
 
 #endif

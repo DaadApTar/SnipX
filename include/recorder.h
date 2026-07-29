@@ -9,6 +9,8 @@
 #include "log.h"
 
 #include "circular_array.h"
+#include "dynamic_circular_array.h"
+#include "compression.h"
 
 #define FRAME_NS(framerate) (long)((double)1/(double)framerate*1e9)
 
@@ -25,8 +27,10 @@ typedef struct {
   int screen_width;
   int screen_height;
   int framerate;
-  circular_array *ring_buffer;
-  size_t buffer_index;
+  size_t framesize;
+  dynamic_circular_array *ring_buffer;
+  compression_wrapper compression;
+  decompression_wrapper decompression;
 } video_capture;
 
 /** @brief PulseAudio stream info for reading.
@@ -35,13 +39,12 @@ typedef struct {
 typedef struct {
   unsigned int index;
   const char *name;
-  circular_array ring_buffer;
+  dynamic_circular_array ring_buffer;
   pa_stream *stream;
-  size_t buffer_index;
+  size_t fragsize;
 } audio_stream;
 
 typedef struct {
-  size_t fragsize;
   audio_stream *streams[STREAMS_CAPACITY];
   size_t length;
 } audio_capture;
