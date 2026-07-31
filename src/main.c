@@ -55,23 +55,22 @@
 
 /** @brief renders sound from ring buffer to file in AAC format.
  *  @param[in] logger logger
- *  @param[in] buffer_index index of last set element in ring buffer
  *  @param[in] ring_buffer the ring buffer itself
  *  @param[in] fps video framerate
  *  @param[in] length length of video in seconds
  *  @param[in] file_path path to file to render.
  */
-void render_sound(logger *logger, size_t buffer_index, dynamic_circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
+void render_sound(logger *logger, dynamic_circular_array *ring_buffer, unsigned int fps, unsigned int length, char *file_path) {
   uint8_t *audio;
 
   ffmpeg *sound = ffmpeg_init_sound(file_path);
 
   size_t audio_start;
-  if (buffer_index < (size_t)(fps * length)) audio_start = 0;
-  else audio_start = buffer_index - fps * length;
+  if (ring_buffer->last_index < (size_t)(fps * length)) audio_start = 0;
+  else audio_start = ring_buffer->last_index - fps * length;
 
   log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
-  for (size_t i = audio_start; i < buffer_index; ++i) {
+  for (size_t i = audio_start; i < ring_buffer->last_index; ++i) {
     size_t size = 0;
     audio = dynamic_circular_array_get(ring_buffer, i, &size);
     /* ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps)); */
@@ -104,7 +103,7 @@ char *render_video(logger *logger, char *temp_directory,
     if (audio_capture->streams[i]->stream == 0) continue;
     char audio_filename[PATH_MAX];
     snprintf(audio_filename, sizeof(audio_filename), "%s/%zu.aac", temp_directory, i);
-    render_sound(logger, audio_capture->streams[i]->ring_buffer.last_index,
+    render_sound(logger,
                   &audio_capture->streams[i]->ring_buffer, opts->fps,
                   opts->length, audio_filename);
     sound_files[sound_files_index++] = strdup(audio_filename);
@@ -502,7 +501,7 @@ int main(int argc, char **argv) {
       dir_create_if_not_exists(temp_directory);
 
       if (deferred_clips_amount < DEFERRED_CLIPS_CAPACITY) {
-        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, x11.capture.ring_buffer->last_index, audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
+        defer_video_args *dva = alloc_defer_video_args(&video_ring_buffer, audio_capture.streams, audio_capture.length, temp_directory, deferred_clips_amount, opts->mbps, &deferred_clips[deferred_clips_amount]);
         pthread_t defer_video_thread;
         pthread_create(&defer_video_thread, NULL, thread_defer_video, dva);
         pthread_detach(defer_video_thread);

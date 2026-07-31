@@ -38,7 +38,7 @@ bool test_circular_array() {
   circular_array_init(&array, 5, sizeof(int));
   for (int i = 0; i < 10; ++i) {
     int value = i;
-    circular_array_push(&array, &value, i);
+    circular_array_push(&array, &value);
   }
   int *dst;
   dst = circular_array_get(&array, 9);

@@ -108,10 +108,10 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   }
   else memcpy(array->data + offset, data, size);
 
-  array->last_index++;
+  if (array->items_length > 0) array->last_index++;
   if (array->items_length < array->items_max) array->items_length++;
   element_bounds bounds = {new_data_start, new_data_end};
-  circular_array_push(&array->indices, &bounds, array->last_index);
+  circular_array_push(&array->indices, &bounds);
 
   return 0;
 }
@@ -160,6 +160,7 @@ void dynamic_circular_array_clear(dynamic_circular_array *array) {
 
 dynamic_circular_array *dynamic_circular_array_dup(dynamic_circular_array *src) {
   dynamic_circular_array *res = (dynamic_circular_array *)malloc(sizeof(dynamic_circular_array));
+  dynamic_circular_array_init(res, src->capacity, src->items_max);
   res->capacity = src->capacity;
   res->items_length = src->items_length;
   res->items_max = src->items_max;
@@ -172,7 +173,7 @@ dynamic_circular_array *dynamic_circular_array_dup(dynamic_circular_array *src) 
   }
   res->indices = *(circular_array*)tmp;
   res->last_index = src->last_index;
-  memccpy(res->data, src->data, res->capacity, src->capacity);
+  memcpy(res->data, src->data, src->capacity);
 
   return res;
 }

@@ -6,6 +6,7 @@ typedef struct {
   size_t length;
   size_t capacity;
   size_t item_size;
+  size_t last_index;
 } circular_array;
 
 /** @brief Initialises circular array.
@@ -19,10 +20,9 @@ int circular_array_init(circular_array *array, size_t capacity, size_t item_size
 /** @brief Pushes data into relative index.
  *  @param[in] array pointer to array.
  *  @param[in] data  data.
- *  @param[in] index index.
  *  @returns 0 if succeed, -1 on error.
  */
-int circular_array_push(circular_array *array, void *data, size_t index);
+int circular_array_push(circular_array *array, void *data);
 
 /** @brief Gets data from relative index.
  *  @param[in] array pointer to array.

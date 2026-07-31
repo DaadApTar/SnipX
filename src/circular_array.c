@@ -8,14 +8,16 @@ int circular_array_init(circular_array *array, size_t capacity, size_t item_size
   array->item_size = item_size;
   array->capacity = capacity;
   array->data = malloc(item_size * capacity);
+  array->last_index = 0;
   if (array->data == 0) return 1;
   return 0;
 }
 
-int circular_array_push(circular_array *array, void *data, size_t index) {
-  size_t idx = index % array->capacity;
+int circular_array_push(circular_array *array, void *data) {
+  size_t idx = array->last_index % array->capacity;
   memcpy(array->data + idx * array->item_size, data, array->item_size);
   if (array->length < array->capacity) array->length++;
+  if (array->length > 0) array->last_index++;
   return 0;
 }
 
@@ -29,11 +31,13 @@ void circular_array_free(circular_array *array) {
   array->item_size = 0;
   array->capacity = 0;
   array->length = 0;
+  array->last_index = 0;
 }
 
 void circular_array_clear(circular_array *array) {
   memset(array->data, 0, array->capacity*array->item_size);
   array->length = 0;
+  array->last_index = 0;
 }
 
 circular_array *circular_array_dup(circular_array *src) {
@@ -44,6 +48,7 @@ circular_array *circular_array_dup(circular_array *src) {
   array->capacity = src->capacity;
   array->length = src->length;
   array->item_size = src->item_size;
+  array->last_index = src->last_index;
   memcpy(array->data, src->data, src->item_size*src->capacity);
   return array;
 }
