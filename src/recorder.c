@@ -10,22 +10,21 @@
 #include "log.h"
 #include "x11.h"
 
-atomic_bool running_flag;
-pthread_mutex_t lock;
+atomic_bool video_capturing_running_flag;
+pthread_mutex_t video_capturing_lock;
 
 void *thread_video_capturing(void *arg) {
   snipx_x11 *params = arg;
-  long i = 0;
-  while (atomic_load(&running_flag)) {
+  while (atomic_load(&video_capturing_running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
     Status ok = XShmGetImage(params->display, params->window, params->shared_image, params->capture.screen_x, params->capture.screen_y, AllPlanes);
     if (!ok) {
-      pthread_mutex_lock(&lock);
+      pthread_mutex_lock(&video_capturing_lock);
       log_print(params->logger, LOG_ERROR, "Cannot get image.\n");
-      pthread_mutex_unlock(&lock);
+      pthread_mutex_unlock(&video_capturing_lock);
     }
-    dynamic_circular_array_push(params->capture.ring_buffer, params->shared_image->data, params->capture.framesize);
+    compression_submit(params->capture.compression_ctx, params->shared_image->data);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -37,12 +36,11 @@ void *thread_video_capturing(void *arg) {
       };
       nanosleep(&sleep_time, 0);
     }
-    i++;
   }
-  if (!atomic_load(&running_flag)) {
-    pthread_mutex_lock(&lock);
+  if (!atomic_load(&video_capturing_running_flag)) {
+    pthread_mutex_lock(&video_capturing_lock);
     log_print(params->logger, LOG_INFO, "Video thread has been closed.\n");
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&video_capturing_lock);
   }
   return 0;
 }

@@ -13,7 +13,7 @@
 
 int dump_media_file(dynamic_circular_array *ring_buffer, char *path, size_t mbps) {
   size_t start = 0;
-  if (ring_buffer->last_index > ring_buffer->capacity) start = ring_buffer->last_index % ring_buffer->capacity;
+  if (ring_buffer->next_index > ring_buffer->capacity) start = ring_buffer->next_index % ring_buffer->capacity;
   FILE *file = fopen(path, "wb");
   if (!file) return -1;
 

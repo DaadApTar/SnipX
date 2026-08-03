@@ -43,6 +43,7 @@ flag available_flags[] = {
      #endif
      ".", COMPRESSION, .priority = 0
     },
+    {"effort", 'e', "Compression effort (1-3).", COMPRESSION_LEVEL, .priority = 0},
 #endif
     {"debug", 0, "Enable debug logs.", DEBUG, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
@@ -64,7 +65,7 @@ void print_usage(char *program) {
   printf("\n");
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
@@ -84,6 +85,7 @@ options *parse_flags(char **args, size_t size) {
   opts->version               = false;
   opts->mbps                  = 50;
   opts->debug                 = false;
+  opts->compression_level     = 1;
 #ifdef FEATURE_SENDER
   opts->locally               = false;
 #else
@@ -100,7 +102,7 @@ options *parse_flags(char **args, size_t size) {
       free(opts);
       return 0;
     }
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
     switch (option) {
     case SCREEN_NUMBER:
       opts->screen_number = atoi(args[i+1]);
@@ -174,6 +176,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
     case COMPRESSION:
       opts->compression = args[i+1];
       break;
+    case COMPRESSION_LEVEL:
+      opts->compression_level = atoi(args[i+1]);
+      break;
     default:
       free(opts);
       return 0;
@@ -184,7 +189,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
   return opts;
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
   [SCREEN_NUMBER] = NUMBER,
@@ -207,6 +212,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [SOURCES] = NONE,
   [VERSION] = NONE,
   [COMPRESSION] = STRING,
+  [COMPRESSION_LEVEL] = NUMBER,
   [AUTOCOMPLETION] = STRING,
   [DEBUG] = NONE,
 };

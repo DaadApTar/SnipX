@@ -32,6 +32,7 @@ typedef enum {
   SOURCES,
   MBPS,
   VERSION,
+  COMPRESSION_LEVEL,
 
   OPTION_TYPE_LENGTH
 } option_type;
@@ -75,6 +76,7 @@ typedef struct {
   bool sources;
   bool version;
   char *compression;
+  int compression_level;
   char *autocompletion;
   bool debug;
 } options;

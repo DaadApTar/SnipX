@@ -19,7 +19,7 @@ int dynamic_circular_array_init(dynamic_circular_array *array, size_t capacity, 
   array->items_length = 0;
   array->items_max = items_amount;
   array->capacity = capacity;
-  array->last_index = 0;
+  array->next_index = 0;
   if (circular_array_init(&array->indices, items_amount, sizeof(element_bounds)) < 0) {
     free(array->data);
     return -1;
@@ -66,7 +66,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   if (size == 0) return -1;
   if (!data) return -1;
 
-  element_bounds *last = circular_array_get(&array->indices, array->last_index);
+  element_bounds *last = circular_array_get(&array->indices, array->next_index - 1);
   size_t new_data_start = 0;
   // Check if last element is not empty
   if (last->start != last->end) {
@@ -84,7 +84,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
 
   // Check if next element exists
   if (array->items_length == array->items_max) {
-    element_bounds *next = circular_array_get(&array->indices, array->last_index+1);
+    element_bounds *next = circular_array_get(&array->indices, array->next_index);
     size_t old_capacity = array->capacity;
     size_t new_capacity = old_capacity;
     while (next->end + new_capacity < new_data_end) {
@@ -108,8 +108,8 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   }
   else memcpy(array->data + offset, data, size);
 
-  if (array->items_length > 0) array->last_index++;
   if (array->items_length < array->items_max) array->items_length++;
+  array->next_index++;
   element_bounds bounds = {new_data_start, new_data_end};
   circular_array_push(&array->indices, &bounds);
 
@@ -154,7 +154,7 @@ void dynamic_circular_array_free(dynamic_circular_array *array) {
 void dynamic_circular_array_clear(dynamic_circular_array *array) {
   circular_array_clear(&array->indices);
   array->items_length = 0;
-  array->last_index = 0;
+  array->next_index = 0;
   memset(array->data, 0, array->capacity);
 }
 
@@ -172,7 +172,7 @@ dynamic_circular_array *dynamic_circular_array_dup(dynamic_circular_array *src) 
     return NULL;
   }
   res->indices = *(circular_array*)tmp;
-  res->last_index = src->last_index;
+  res->next_index = src->next_index;
   memcpy(res->data, src->data, src->capacity);
 
   return res;

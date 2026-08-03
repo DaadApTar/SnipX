@@ -53,6 +53,9 @@
 #define SOUND_FILES_CAPACITY 8
 #define DEFERRED_CLIPS_CAPACITY 256
 
+// TODO: if compression is enabled
+#define COMPRESSION_QUEUE_CAPACITY 30
+
 /** @brief renders sound from ring buffer to file in AAC format.
  *  @param[in] logger logger
  *  @param[in] ring_buffer the ring buffer itself
@@ -66,11 +69,11 @@ void render_sound(logger *logger, dynamic_circular_array *ring_buffer, unsigned 
   ffmpeg *sound = ffmpeg_init_sound(file_path);
 
   size_t audio_start;
-  if (ring_buffer->last_index < (size_t)(fps * length)) audio_start = 0;
-  else audio_start = ring_buffer->last_index - fps * length;
+  if (ring_buffer->next_index < (size_t)(fps * length)) audio_start = 0;
+  else audio_start = ring_buffer->next_index - fps * length;
 
   log_print(logger, LOG_INFO, "Flushing sound into %s\n", file_path);
-  for (size_t i = audio_start; i < ring_buffer->last_index; ++i) {
+  for (size_t i = audio_start; i < ring_buffer->next_index; ++i) {
     size_t size = 0;
     audio = dynamic_circular_array_get(ring_buffer, i, &size);
     /* ffmpeg_push_frame(sound, audio, SNIPX_PA_AUDIO_BYTES_PER_FRAME(fps)); */
@@ -121,16 +124,20 @@ char *render_video(logger *logger, char *temp_directory,
   void *frame;
 
   ffmpeg *video = ffmpeg_init_video(video_filename, video_capture.screen_width, video_capture.screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
-  int video_start = video_capture.ring_buffer->last_index - opts->fps * opts->length;
-  if (video_start < 0) video_start = 0;
+  size_t video_start;
+  if (video_capture.ring_buffer->next_index < (size_t)(opts->fps * opts->length)) video_start = 0;
+  else video_start = video_capture.ring_buffer->next_index - opts->fps * opts->length;
 
   log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-  for (size_t i = video_start; i < video_capture.ring_buffer->last_index; ++i) {
+  void *decompressed_frame = malloc(video_capture.framesize);
+  for (size_t i = video_start; i < video_capture.ring_buffer->next_index; ++i) {
     size_t framesize = 0;
     frame = dynamic_circular_array_get(video_capture.ring_buffer, i, &framesize);
-    ffmpeg_push_frame(video, frame, framesize);
+    video_capture.decompression(decompressed_frame, video_capture.framesize, frame, framesize);
+    ffmpeg_push_frame(video, decompressed_frame, video_capture.framesize);
     free(frame);
   }
+  free(decompressed_frame);
 
   ffmpeg_close(video);
 
@@ -313,8 +320,8 @@ int main(int argc, char **argv) {
 #ifdef FEATURE_SENDER
   pthread_t sender_thread;
 #endif
-  pthread_mutex_init(&lock, 0);
-  atomic_store(&running_flag, 1);
+  pthread_mutex_init(&video_capturing_lock, 0);
+  atomic_store(&video_capturing_running_flag, 1);
 
   // Initialise X11
 
@@ -341,19 +348,25 @@ int main(int argc, char **argv) {
   dynamic_circular_array video_ring_buffer;
   dynamic_circular_array desktop_audio_ring_buffer;
   dynamic_circular_array mic_audio_ring_buffer;
+  // TODO: if compression is enabled
+  circular_array compression_queue;
 
+  size_t frame_size = x11.shared_image->bytes_per_line * x11.shared_image->height;
+  size_t items_amount = opts->fps * opts->length;
+  size_t compression_bound = get_compression_bound(algorithm, frame_size);
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
   // TODO: reconsider sizes when compression is added.
-  dynamic_circular_array_init(&video_ring_buffer, get_compression_bound(algorithm, x11.shared_image->bytes_per_line * x11.shared_image->height) / 2 * opts->fps * opts->length, opts->fps * opts->length);
+  dynamic_circular_array_init(&video_ring_buffer, get_compression_bound(algorithm, frame_size) * items_amount / 4, items_amount);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
-  dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * opts->fps * opts->length, opts->fps * opts->length);
-  dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * opts->fps * opts->length, opts->fps * opts->length);
+  dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
+  dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
+  // TODO: if compression is enabled
+  circular_array_init(&compression_queue, COMPRESSION_QUEUE_CAPACITY, frame_size);
 
   x11.capture.ring_buffer = &video_ring_buffer;
   x11.capture.framerate = opts->fps;
-  x11.capture.compression = compression;
   x11.capture.decompression = decompression;
-  x11.capture.framesize = x11.shared_image->bytes_per_line * x11.shared_image->height;
+  x11.capture.framesize = frame_size;
 
   // Initialise pulseaudio
   log_print(&logger, LOG_INFO, "Preparing PulseAudio.\n");
@@ -401,6 +414,22 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
   pthread_create(&sender_thread, 0, thread_send_temp_files, (void *)&temp_sender_params);
 #endif
+
+  // Initialising compression
+  // TODO: if compression is enabled
+  log_print(&logger, LOG_INFO, "Creating compession thread.\n");
+  compression_args compression_args = {
+    .queue = &compression_queue,
+    .compression_bound = compression_bound,
+    .dst = &video_ring_buffer,
+    .compression = compression,
+    .compression_level = opts->compression_level,
+  };
+  compression_context compression_ctx;
+  compression_init(&compression_ctx, compression_args);
+  x11.capture.compression_ctx = &compression_ctx;
+  compression_start(&compression_ctx);
+
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
   log_print(&logger, LOG_INFO, "Creating audio thread.\n");
@@ -443,16 +472,20 @@ int main(int argc, char **argv) {
       log_print(&logger, LOG_INFO, "Stopping recording.\n");
       is_stopped = true;
 
-      atomic_store(&running_flag, 0);
+      atomic_store(&video_capturing_running_flag, 0);
       pthread_join(video_thread, 0);
+      compression_stop(&compression_ctx);
     }
     if (memcmp(socket_buffer, brake_command, SOCKET_BUFFER_SIZE) == 0) {
       log_print(&logger, LOG_INFO, "Starting immediate rendering.\n");
 
-      atomic_store(&running_flag, 0);
-      pthread_join(video_thread, 0);
+      // TODO: thread mess.
+      atomic_store(&video_capturing_running_flag, 0);
 
       stop_pulseaudio(&pa);
+
+      pthread_join(video_thread, 0);
+      compression_stop(&compression_ctx);
 
       // Create tmp directory.
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
@@ -479,22 +512,27 @@ int main(int argc, char **argv) {
       free(temp_directory);
 
       dynamic_circular_array_clear(&video_ring_buffer);
+      circular_array_clear(&compression_queue);
 
       for (size_t i = 0; i < audio_capture.length; ++i) {
         dynamic_circular_array_clear(&audio_capture.streams[i]->ring_buffer);
       }
-      atomic_store(&running_flag, 1);
+      // TODO: thread mess.
+      atomic_store(&video_capturing_running_flag, 1);
       pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
+      compression_start(&compression_ctx);
 
       proceed_pulseaudio(&pa);
     }
     if (memcmp(socket_buffer, defer_command, SOCKET_BUFFER_SIZE) == 0) {
       log_print(&logger, LOG_INFO, "Deferring clip.\n");
       
-      atomic_store(&running_flag, 0);
+      // TODO: thread mess.
+      atomic_store(&video_capturing_running_flag, 0);
       pthread_join(video_thread, 0);
 
       stop_pulseaudio(&pa);
+      compression_stop(&compression_ctx);
 
       // Create tmp directory.
       char *temp_directory = dir_default_or_env(default_snipx_tmp_dir, ENV_SNIPX_TMP_DIR);
@@ -518,11 +556,14 @@ int main(int argc, char **argv) {
       free(temp_directory);
 
       dynamic_circular_array_clear(&video_ring_buffer);
+      circular_array_clear(&compression_queue);
 
       for (size_t i = 0; i < audio_capture.length; ++i) {
         dynamic_circular_array_clear(&audio_capture.streams[i]->ring_buffer);
       }
-      atomic_store(&running_flag, 1);
+      // TODO: thread mess.
+      compression_start(&compression_ctx);
+      atomic_store(&video_capturing_running_flag, 1);
       pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);
 
       proceed_pulseaudio(&pa);
@@ -571,7 +612,7 @@ int main(int argc, char **argv) {
   // WARNING: high-quality code operation. Goto opponents should not read the code below
 free_app:
 
-  pthread_mutex_destroy(&lock);
+  pthread_mutex_destroy(&video_capturing_lock);
   close(socket_fd);
   log_print(&logger, LOG_INFO, "Exiting.\n");
   log_close(&logger);

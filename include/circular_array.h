@@ -6,7 +6,7 @@ typedef struct {
   size_t length;
   size_t capacity;
   size_t item_size;
-  size_t last_index;
+  size_t next_index;
 } circular_array;
 
 /** @brief Initialises circular array.

@@ -28,7 +28,7 @@ typedef struct {
   size_t capacity;
   size_t items_length;
   size_t items_max;
-  size_t last_index;
+  size_t next_index;
   circular_array indices;
 } dynamic_circular_array;
 

@@ -27,14 +27,14 @@ typedef struct {
   int screen_width;
   int screen_height;
   int framerate;
-  size_t framesize;
-  dynamic_circular_array *ring_buffer;
-  compression_wrapper compression;
+  int framesize;
   decompression_wrapper decompression;
+  dynamic_circular_array *ring_buffer;
+  compression_context *compression_ctx;
 } video_capture;
 
 /** @brief PulseAudio stream info for reading.
- *  @note stream and buffer_index are set inside read callback.
+ *  @note stream is set inside read callback.
  */
 typedef struct {
   unsigned int index;
@@ -49,8 +49,8 @@ typedef struct {
   size_t length;
 } audio_capture;
 
-extern atomic_bool     running_flag;
-extern pthread_mutex_t lock;
+extern atomic_bool     video_capturing_running_flag;
+extern pthread_mutex_t video_capturing_lock;
 
 /** @brief Thread for capturing video.
  *  @param[in] arg #video_capturing_params.

@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 #include "build_features.h"
+#include "circular_array.h"
+#include "dynamic_circular_array.h"
+#include <stdatomic.h>
 
 // TODO: introduce default compression
 #define ZSTD_STRING "zstd"
@@ -71,6 +74,59 @@ size_t get_compression_bound(compression_algorithm algorithm, size_t src_size);
  *  @param[in] size size dst, data1 and data2. Expected to be the same.
  */
 void xor_delta(char *dst, char *data1, char *data2, size_t size);
+
+typedef struct {
+  circular_array *queue;
+  compression_wrapper compression;
+  dynamic_circular_array *dst;
+  size_t compression_bound;
+  int compression_level;
+} compression_args;
+
+typedef struct {
+  atomic_bool running;
+  pthread_t thread;
+  pthread_mutex_t queue_lock;
+  pthread_mutex_t dst_lock;
+  pthread_cond_t cond;
+  compression_args args;
+} compression_context;
+
+/** @brief initialises compression thread context.
+ *  @param[out] ctx compression context to init.
+ *  @param[in] args compression_arguments.
+ *  @return 0 on success, -1 on error.
+ */
+int compression_init(compression_context *ctx, compression_args args);
+
+/** @brief Starts the compression worker.
+ *  @param[in] ctx compression thread context.
+ *  @return 0 on success, -1 on error.
+ */
+int compression_start(compression_context *ctx);
+
+/** @brief Stops the compression worker.
+ *  @param[in] ctx compression thread context.
+ *  @return 0 on success, -1 on error.
+ */
+int compression_stop(compression_context *ctx);
+
+/** @brief Deinits the compression worker.
+ *  @param[in] ctx compression thread context.
+ */
+void compression_destroy(compression_context *ctx);
+
+/** @brief Queueing data for compression.
+ *  @param[in] array queue ring buffer.
+ *  @param[in] data data chunk.
+ *  @return 0 on success, -1 on error.
+ */
+void compression_submit(compression_context *ctx, void *data);
+
+/** @brief Worker that compresses incoming data.
+ *  @param[in] params #compression_args.
+ */
+void *compression_worker(void *params);
 
 // ================COMPRESSION WRAPPERS================
 

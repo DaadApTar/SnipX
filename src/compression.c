@@ -1,6 +1,10 @@
 #include "compression.h"
 #include <string.h>
 #include <stdint.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <stdio.h>
 
 #ifdef FEATURE_ZSTD
 #include <zstd.h>
@@ -85,6 +89,77 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size) {
     uint64_t diff = chunk1 ^ chunk2;
     memcpy(dst, &diff, size);
   }
+}
+
+void *compression_worker(void *params) {
+  compression_context *ctx = (compression_context *)params;
+  size_t last = 0;
+  void *compressed_frame = malloc(ctx->args.compression_bound);
+
+  while (atomic_load(&ctx->running)) {
+    pthread_mutex_lock(&ctx->queue_lock);
+    while (ctx->args.queue->length == 0 && atomic_load(&ctx->running))
+      pthread_cond_wait(&ctx->cond, &ctx->queue_lock);
+    if (!atomic_load(&ctx->running)) {
+      pthread_mutex_unlock(&ctx->queue_lock);
+      break;
+    }
+
+    size_t last_index = ctx->args.queue->next_index;
+    pthread_mutex_unlock(&ctx->queue_lock);
+    if (last > last_index) last = 0;
+
+    while (last < last_index) {
+      pthread_mutex_lock(&ctx->queue_lock);
+      void *element = circular_array_get(ctx->args.queue, last);
+      pthread_mutex_unlock(&ctx->queue_lock);
+      size_t size = ctx->args.compression(compressed_frame, ctx->args.compression_bound, element, ctx->args.queue->item_size, ctx->args.compression_level);
+      pthread_mutex_lock(&ctx->dst_lock);
+      dynamic_circular_array_push(ctx->args.dst, compressed_frame, size);
+      pthread_mutex_unlock(&ctx->dst_lock);
+      last++;
+    }
+  }
+
+  free(compressed_frame);
+  return NULL;
+}
+
+int compression_init(compression_context *ctx, compression_args args) {
+  ctx->args = args;
+  atomic_init(&ctx->running, false);
+  if (pthread_mutex_init(&ctx->queue_lock, NULL) != 0) return -1;
+  if (pthread_mutex_init(&ctx->dst_lock, NULL) != 0) return -1;
+  if (pthread_cond_init(&ctx->cond, NULL) != 0) return -1;
+  return 0;
+}
+
+int compression_start(compression_context *ctx) {
+  if (atomic_load(&ctx->running)) return -1;
+  atomic_store(&ctx->running, true);
+  return pthread_create(&ctx->thread, 0, compression_worker, ctx);
+}
+
+int compression_stop(compression_context *ctx) {
+  if (!atomic_load(&ctx->running)) return -1;
+  atomic_store(&ctx->running, false);
+  pthread_mutex_lock(&ctx->queue_lock);
+  pthread_cond_broadcast(&ctx->cond);
+  pthread_mutex_unlock(&ctx->queue_lock);
+  return pthread_join(ctx->thread, NULL);
+}
+
+void compression_destroy(compression_context *ctx) {
+  pthread_mutex_destroy(&ctx->queue_lock);
+  pthread_mutex_destroy(&ctx->dst_lock);
+  pthread_cond_destroy(&ctx->cond);
+}
+
+void compression_submit(compression_context *ctx, void *data) {
+  pthread_mutex_lock(&ctx->queue_lock);
+  circular_array_push(ctx->args.queue, data);
+  pthread_cond_signal(&ctx->cond);
+  pthread_mutex_unlock(&ctx->queue_lock);
 }
 
 // ================COMPRESSION WRAPPERS================
