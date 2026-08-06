@@ -53,9 +53,6 @@
 #define SOUND_FILES_CAPACITY 8
 #define DEFERRED_CLIPS_CAPACITY 256
 
-// TODO: if compression is enabled
-#define COMPRESSION_QUEUE_CAPACITY 30
-
 /** @brief renders sound from ring buffer to file in AAC format.
  *  @param[in] logger logger
  *  @param[in] ring_buffer the ring buffer itself
@@ -374,7 +371,7 @@ int main(int argc, char **argv) {
   dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
   dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
   // TODO: if compression is enabled
-  circular_array_init(&compression_queue, COMPRESSION_QUEUE_CAPACITY, frame_size);
+  circular_array_init(&compression_queue, opts->fps, frame_size);
 
   x11.capture.ring_buffer = &video_ring_buffer;
   x11.capture.framerate = opts->fps;

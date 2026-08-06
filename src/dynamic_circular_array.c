@@ -75,7 +75,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   size_t new_data_end = new_data_start + size - 1;
 
   // Check if array is too small for all elements.
-  if (array->items_length < array->items_max && new_data_end > array->capacity) {
+  if (array->items_length < array->items_max && new_data_end >= array->capacity) {
     size_t new_capacity = array->capacity * 2;
     while (new_capacity < new_data_end) new_capacity *= 2;
     if (dynamic_circular_array_realloc(array, new_capacity) < 0)
@@ -94,7 +94,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
       if (dynamic_circular_array_realloc(array, new_capacity) < 0)
         return -1;
       size_t diff = new_capacity - old_capacity;
-      memcpy(array->data + next->end + 1, array->data, diff);
+      memcpy(array->data + (next->end % old_capacity) + 1, array->data, diff);
     }
   }
 
