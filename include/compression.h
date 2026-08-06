@@ -78,9 +78,11 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size);
 typedef struct {
   circular_array *queue;
   compression_wrapper compression;
+  decompression_wrapper decompression;
   dynamic_circular_array *dst;
   size_t compression_bound;
   int compression_level;
+  void *keyframe;
 } compression_args;
 
 typedef struct {

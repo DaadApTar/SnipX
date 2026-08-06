@@ -27,10 +27,11 @@ typedef struct {
   int screen_width;
   int screen_height;
   int framerate;
-  int framesize;
+  size_t framesize;
   decompression_wrapper decompression;
   dynamic_circular_array *ring_buffer;
   compression_context *compression_ctx;
+  char *keyframe;
 } video_capture;
 
 /** @brief PulseAudio stream info for reading.

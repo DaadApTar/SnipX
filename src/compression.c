@@ -94,7 +94,9 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size) {
 void *compression_worker(void *params) {
   compression_context *ctx = (compression_context *)params;
   size_t last = 0;
+  size_t item_size = ctx->args.queue->item_size;
   void *compressed_frame = malloc(ctx->args.compression_bound);
+  void *delta_frame = malloc(item_size);
 
   while (atomic_load(&ctx->running)) {
     pthread_mutex_lock(&ctx->queue_lock);
@@ -110,10 +112,32 @@ void *compression_worker(void *params) {
     if (last > last_index) last = 0;
 
     while (last < last_index) {
+
       pthread_mutex_lock(&ctx->queue_lock);
+
       void *element = circular_array_get(ctx->args.queue, last);
+      void *prev = NULL;
+      // Saving the very first frame.
+      if (last == 0) {
+        memcpy(ctx->args.keyframe, element, item_size);
+      }
+      if (last > ctx->args.dst->items_max) {
+        size_t size = 0;
+        void *new_keyframe_compressed = dynamic_circular_array_get(ctx->args.dst, last - ctx->args.dst->items_max, &size);
+        ctx->args.decompression(delta_frame, item_size, new_keyframe_compressed, size);
+        xor_delta(ctx->args.keyframe, ctx->args.keyframe, delta_frame, item_size);
+        /* memcpy(ctx->args.keyframe, delta_frame, item_size); */
+        free(new_keyframe_compressed);
+      }
+      if (last > 0) {
+        prev = circular_array_get(ctx->args.queue, last - 1);
+        xor_delta(delta_frame, prev, element, item_size);
+      }
+      else {
+        memcpy(delta_frame, element, item_size);
+      }
       pthread_mutex_unlock(&ctx->queue_lock);
-      size_t size = ctx->args.compression(compressed_frame, ctx->args.compression_bound, element, ctx->args.queue->item_size, ctx->args.compression_level);
+      size_t size = ctx->args.compression(compressed_frame, ctx->args.compression_bound, delta_frame, item_size, ctx->args.compression_level);
       pthread_mutex_lock(&ctx->dst_lock);
       dynamic_circular_array_push(ctx->args.dst, compressed_frame, size);
       pthread_mutex_unlock(&ctx->dst_lock);
@@ -122,6 +146,7 @@ void *compression_worker(void *params) {
   }
 
   free(compressed_frame);
+  free(delta_frame);
   return NULL;
 }
 
