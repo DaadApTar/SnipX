@@ -33,7 +33,7 @@ typedef struct {
   decompression_wrapper decompression;
   dynamic_circular_array *ring_buffer;
   compression_context *compression_ctx;
-  char *keyframe;
+  unsigned int gop_length;
 } video_capture;
 
 typedef enum {
@@ -82,20 +82,13 @@ int push_frame_with_header(dynamic_circular_array *ring_buffer, void *data, size
  *  @param[in] packed_frame pointer to frame.
  *  @return header of given packed frame
  */
-inline frame_header get_frame_header(void *packed_frame) {
-  frame_header header;
-  memcpy(&header, packed_frame, sizeof(frame_header));
-
-  return header;
-}
+frame_header get_frame_header(void *packed_frame);
 
 /** Gets data of frame without header.
  *  @param[in] packed_frame pointer to frame.
  *  @return frame.
  */
-inline void *get_frame_data(void *packed_frame) {
-  return (void *)((char *) packed_frame + sizeof(frame_header));
-}
+void *get_frame_data(void *packed_frame);
 
 /** @brief Thread for capturing video.
  *  @param[in] arg #video_capturing_params.

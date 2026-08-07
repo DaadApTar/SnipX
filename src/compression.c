@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdio.h>
+#include "recorder.h"
 
 #ifdef FEATURE_ZSTD
 #include <zstd.h>
@@ -93,10 +94,13 @@ void xor_delta(char *dst, char *data1, char *data2, size_t size) {
 
 void *compression_worker(void *params) {
   compression_context *ctx = (compression_context *)params;
-  size_t last = 0;
+  size_t current = 0;
   size_t item_size = ctx->args.queue->item_size;
   void *compressed_frame = malloc(ctx->args.compression_bound);
   void *delta_frame = malloc(item_size);
+  void *prev_frame = malloc(item_size);
+  size_t pack_buffer_size = item_size + sizeof(frame_header);
+  void *pack_buffer = malloc(pack_buffer_size);
 
   while (atomic_load(&ctx->running)) {
     pthread_mutex_lock(&ctx->queue_lock);
@@ -109,44 +113,38 @@ void *compression_worker(void *params) {
 
     size_t last_index = ctx->args.queue->next_index;
     pthread_mutex_unlock(&ctx->queue_lock);
-    if (last > last_index) last = 0;
+    if (current > last_index) current = 0;
 
-    while (last < last_index) {
-
+    while (current < last_index) {
       pthread_mutex_lock(&ctx->queue_lock);
 
-      void *element = circular_array_get(ctx->args.queue, last);
-      void *prev = NULL;
-      // Saving the very first frame.
-      if (last == 0) {
-        memcpy(ctx->args.keyframe, element, item_size);
-      }
-      if (last > ctx->args.dst->items_max) {
-        size_t size = 0;
-        void *new_keyframe_compressed = dynamic_circular_array_get(ctx->args.dst, last - ctx->args.dst->items_max, &size);
-        ctx->args.decompression(delta_frame, item_size, new_keyframe_compressed, size);
-        xor_delta(ctx->args.keyframe, ctx->args.keyframe, delta_frame, item_size);
-        /* memcpy(ctx->args.keyframe, delta_frame, item_size); */
-        free(new_keyframe_compressed);
-      }
-      if (last > 0) {
-        prev = circular_array_get(ctx->args.queue, last - 1);
-        xor_delta(delta_frame, prev, element, item_size);
+      frame_header header;
+      void *current_frame = circular_array_get(ctx->args.queue, current);
+
+      if (current % ctx->args.gop_length == 0) {
+        header.type = FRAME_KEYFRAME;
+        memcpy(delta_frame, current_frame, item_size);
       }
       else {
-        memcpy(delta_frame, element, item_size);
+        header.type = FRAME_PREDICTED;
+        xor_delta(delta_frame, current_frame, prev_frame, item_size);
       }
+      memcpy(prev_frame, current_frame, item_size);
+
       pthread_mutex_unlock(&ctx->queue_lock);
-      size_t size = ctx->args.compression(compressed_frame, ctx->args.compression_bound, delta_frame, item_size, ctx->args.compression_level);
+      size_t compressed_size = ctx->args.compression(compressed_frame, ctx->args.compression_bound, delta_frame, item_size, ctx->args.compression_level);
+      header.framesize = compressed_size;
       pthread_mutex_lock(&ctx->dst_lock);
-      dynamic_circular_array_push(ctx->args.dst, compressed_frame, size);
+      push_frame_with_header(ctx->args.dst, compressed_frame, compressed_size, header, pack_buffer, pack_buffer_size);
       pthread_mutex_unlock(&ctx->dst_lock);
-      last++;
+      current++;
     }
   }
 
   free(compressed_frame);
   free(delta_frame);
+  free(prev_frame);
+  free(pack_buffer);
   return NULL;
 }
 

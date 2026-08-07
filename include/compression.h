@@ -82,7 +82,8 @@ typedef struct {
   dynamic_circular_array *dst;
   size_t compression_bound;
   int compression_level;
-  void *keyframe;
+  /// GOP - group of pictures
+  unsigned int gop_length;
 } compression_args;
 
 typedef struct {

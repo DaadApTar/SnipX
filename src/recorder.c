@@ -29,6 +29,17 @@ int push_frame_with_header(dynamic_circular_array *ring_buffer, void *data, size
   return dynamic_circular_array_push(ring_buffer, pack_buffer, header_size+frame_size);
 }
 
+frame_header get_frame_header(void *packed_frame) {
+  frame_header header;
+  memcpy(&header, packed_frame, sizeof(frame_header));
+
+  return header;
+}
+
+void *get_frame_data(void *packed_frame) {
+  return (void *)((char *) packed_frame + sizeof(frame_header));
+}
+
 void *thread_video_capturing(void *arg) {
   snipx_x11 *params = arg;
   while (atomic_load(&video_capturing_running_flag)) {
