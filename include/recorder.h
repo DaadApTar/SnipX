@@ -12,6 +12,8 @@
 #include "dynamic_circular_array.h"
 #include "compression.h"
 
+#include <string.h>
+
 #define FRAME_NS(framerate) (long)((double)1/(double)framerate*1e9)
 
 #define SNIPX_PA_SAMPLE_RATE 44100
@@ -34,6 +36,18 @@ typedef struct {
   char *keyframe;
 } video_capture;
 
+typedef enum {
+  FRAME_KEYFRAME,
+  FRAME_PREDICTED,
+} frame_type;
+
+typedef struct {
+  frame_type type;
+  // TODO: timestamp
+  uint64_t timestamp;
+  uint64_t framesize;
+} frame_header;
+
 /** @brief PulseAudio stream info for reading.
  *  @note stream is set inside read callback.
  */
@@ -52,6 +66,36 @@ typedef struct {
 
 extern atomic_bool     video_capturing_running_flag;
 extern pthread_mutex_t video_capturing_lock;
+
+/** Sends frame with header as one element.
+ *  @param[in] ring_buffer buffer to push element.
+ *  @param[in] data frame data.
+ *  @param[in] frame_size frame size.
+ *  @param[in] header frame header.
+ *  @param[in] pack_buffer preallocated buffer for packing frame and header.
+ *  @param[in] buffer_size size size of pack buffer. Must be >= header size + frame size.
+ *  @return 0 on success, -1 on error.
+ */
+int push_frame_with_header(dynamic_circular_array *ring_buffer, void *data, size_t frame_size, frame_header header, void *pack_buffer, size_t buffer_size);
+
+/** Gets header of frame.
+ *  @param[in] packed_frame pointer to frame.
+ *  @return header of given packed frame
+ */
+inline frame_header get_frame_header(void *packed_frame) {
+  frame_header header;
+  memcpy(&header, packed_frame, sizeof(frame_header));
+
+  return header;
+}
+
+/** Gets data of frame without header.
+ *  @param[in] packed_frame pointer to frame.
+ *  @return frame.
+ */
+inline void *get_frame_data(void *packed_frame) {
+  return (void *)((char *) packed_frame + sizeof(frame_header));
+}
 
 /** @brief Thread for capturing video.
  *  @param[in] arg #video_capturing_params.

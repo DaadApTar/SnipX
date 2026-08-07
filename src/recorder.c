@@ -9,9 +9,25 @@
 #include <X11/extensions/XShm.h>
 #include "log.h"
 #include "x11.h"
+#include <string.h>
 
 atomic_bool video_capturing_running_flag;
 pthread_mutex_t video_capturing_lock;
+
+// TODO: move it into separate place.
+int push_frame_with_header(dynamic_circular_array *ring_buffer, void *data, size_t frame_size, frame_header header, void *pack_buffer, size_t buffer_size) {
+  size_t header_size = sizeof(frame_header);
+  if (ring_buffer == 0) return -1;
+  if (frame_size && data == 0) return -1;
+  if (pack_buffer == 0) return -1;
+  if (frame_size > SIZE_MAX - header_size) return -1;
+  if (buffer_size < frame_size + header_size) return -1;
+
+  memcpy(pack_buffer, &header, header_size);
+  memcpy((char *)pack_buffer+header_size, data, frame_size);
+
+  return dynamic_circular_array_push(ring_buffer, pack_buffer, header_size+frame_size);
+}
 
 void *thread_video_capturing(void *arg) {
   snipx_x11 *params = arg;
