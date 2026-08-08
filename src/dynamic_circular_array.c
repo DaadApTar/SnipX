@@ -1,7 +1,10 @@
 #include "dynamic_circular_array.h"
-#include <stdlib.h>
 #include <string.h>
 #include "circular_array.h"
+#include <stdint.h>
+#include "alloc.h"
+
+#define CAPACITY_MULTIPLIER 8
 
 /** Represents data bounds.
  *  @field start is an index of the first byte. 
@@ -14,7 +17,8 @@ typedef struct {
 } element_bounds;
 
 int dynamic_circular_array_init(dynamic_circular_array *array, size_t capacity, size_t items_amount) {
-  array->data = malloc(capacity);
+  array->reserved_memory = capacity * CAPACITY_MULTIPLIER;
+  array->data = reserve_memory(array->reserved_memory);
   if (!array->data) return -1;
   array->items_length = 0;
   array->items_max = items_amount;
@@ -35,12 +39,19 @@ int dynamic_circular_array_init(dynamic_circular_array *array, size_t capacity, 
  */
 int dynamic_circular_array_realloc(dynamic_circular_array *array, size_t new_size) {
   if (new_size == array->capacity) return 0;
-  void *new_data = realloc(array->data, new_size);
-  if (!new_data) {
-    return -1;
+  if (new_size > SIZE_MAX / CAPACITY_MULTIPLIER) return -1;
+  if (new_size * CAPACITY_MULTIPLIER <= array->reserved_memory) {
+    array->capacity = new_size;
   }
-  array->data = new_data;
-  array->capacity = new_size;
+  else {
+    void *new_data = rereserve_memory(array->data, array->reserved_memory, new_size * CAPACITY_MULTIPLIER);
+    if (!new_data) {
+      return -1;
+    }
+    array->data = new_data;
+    array->reserved_memory = new_size * CAPACITY_MULTIPLIER;
+    array->capacity = new_size;
+  }
   return 0;
 }
 
@@ -76,8 +87,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
 
   // Check if array is too small for all elements.
   if (array->items_length < array->items_max && new_data_end >= array->capacity) {
-    size_t new_capacity = array->capacity * 2;
-    while (new_capacity < new_data_end) new_capacity *= 2;
+    size_t new_capacity = new_data_end;
     if (dynamic_circular_array_realloc(array, new_capacity) < 0)
       return -1;
   }
@@ -86,10 +96,7 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
   if (array->items_length == array->items_max) {
     element_bounds *next = circular_array_get(&array->indices, array->next_index);
     size_t old_capacity = array->capacity;
-    size_t new_capacity = old_capacity;
-    while (next->end + new_capacity < new_data_end) {
-      new_capacity *= 1.5;
-    }
+    size_t new_capacity = new_data_end - next->end;
     if (new_capacity > old_capacity) {
       if (dynamic_circular_array_realloc(array, new_capacity) < 0)
         return -1;
@@ -148,7 +155,7 @@ void dynamic_circular_array_free(dynamic_circular_array *array) {
   array->capacity = 0;
   array->items_max = 0;
   array->items_length = 0;
-  free(array->data);
+  free_reserved_memory(array->data, array->reserved_memory);
 }
 
 void dynamic_circular_array_clear(dynamic_circular_array *array) {

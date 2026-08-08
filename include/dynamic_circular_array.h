@@ -25,6 +25,7 @@
 
 typedef struct {
   char *data;
+  size_t reserved_memory;
   size_t capacity;
   size_t items_length;
   size_t items_max;
