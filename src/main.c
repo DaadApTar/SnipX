@@ -305,6 +305,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
   log_print(&logger, LOG_DEBUG, "Compression algorithm: `%s`\n", opts->compression == 0 ? NONE_STRING : opts->compression);
+
+  compression_effort compression_level = dispatch_compression_effort(opts->compression_level);
+  log_print(&logger, LOG_DEBUG, "Compression level: %s.\n", compression_level == EFFORT_LOW ? "LOW" : compression_level == EFFORT_MEDIUM ? "MEDIUM" : compression_level == EFFORT_HIGH ? "HIGH" : "INVALID");
+
   compression_wrapper compression = dispatch_compression_algorithm(algorithm);
   decompression_wrapper decompression = dispatch_decompression_algorithm(algorithm);
 
@@ -389,19 +393,16 @@ int main(int argc, char **argv) {
   dynamic_circular_array video_ring_buffer;
   dynamic_circular_array desktop_audio_ring_buffer;
   dynamic_circular_array mic_audio_ring_buffer;
-  // TODO: if compression is enabled
   circular_array compression_queue;
 
   size_t frame_size = x11.shared_image->bytes_per_line * x11.shared_image->height;
   size_t items_amount = opts->fps * opts->length;
   size_t compression_bound = get_compression_bound(algorithm, frame_size);
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  // TODO: reconsider sizes when compression is added.
   dynamic_circular_array_init(&video_ring_buffer, get_compression_bound(algorithm, frame_size) * items_amount / 8, items_amount + gop_length);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
   dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
   dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
-  // TODO: if compression is enabled
   circular_array_init(&compression_queue, opts->fps, frame_size);
 
   x11.capture.ring_buffer = &video_ring_buffer;
@@ -458,7 +459,6 @@ int main(int argc, char **argv) {
 #endif
 
   // Initialising compression
-  // TODO: if compression is enabled
   log_print(&logger, LOG_INFO, "Creating compession thread.\n");
   compression_args compression_args = {
     .queue = &compression_queue,
@@ -466,7 +466,7 @@ int main(int argc, char **argv) {
     .dst = &video_ring_buffer,
     .compression = compression,
     .decompression = decompression,
-    .compression_level = opts->compression_level,
+    .compression_level = compression_level,
     .gop_length = gop_length,
   };
   compression_context compression_ctx;

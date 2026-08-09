@@ -7,22 +7,27 @@
 #include "dynamic_circular_array.h"
 #include <stdatomic.h>
 
-// TODO: introduce default compression
 #define ZSTD_STRING "zstd"
 #define LZ4_STRING "lz4"
 #define NONE_STRING "none"
 
 typedef enum {
-  COMPRESSION_NONE,
+  COMPRESSION_NONE = 0,
 #ifdef FEATURE_ZSTD
-  COMPRESSION_ZSTD,
+  COMPRESSION_ZSTD = 1,
 #endif // FEATURE_ZSTD
 #ifdef FEATURE_LZ4
-  COMPRESSION_LZ4,
+  COMPRESSION_LZ4 = 2,
 #endif // FEATURE_LZ4
 
   COMPRESSION_INVALID
 } compression_algorithm;
+
+typedef enum {
+  EFFORT_LOW,
+  EFFORT_MEDIUM,
+  EFFORT_HIGH
+} compression_effort;
 
 /** @brief Compression algorithm wrapper.
  *  @param[out] dst allocated compression destination.
@@ -39,7 +44,7 @@ typedef size_t (*compression_wrapper)(void *dst, size_t dst_capacity, void *src,
  *  @param[in] dst_capacity size of dst.
  *  @param[in] src source data.
  *  @param[in] src_size size of src.
- *  @return size of new data.
+ *  @return size of new data on success, 0 on error.
  */
 typedef size_t (*decompression_wrapper)(void *dst, size_t dst_capacity, void *src, size_t src_size);
 
@@ -60,6 +65,12 @@ compression_wrapper dispatch_compression_algorithm(compression_algorithm algorit
  *  @return Wrapper around decompression algorithm on success. On error, NULL is returned.
  */
 decompression_wrapper dispatch_decompression_algorithm(compression_algorithm algorithm);
+
+/** @brief Normalises user's level to compression effort.
+ *  @param[in] level user's level.
+ *  @return effort.
+ */
+compression_effort dispatch_compression_effort(int level);
 
 /** @param[in] algorithm compression algorithm.
  *  @param[in] src_size size of src.

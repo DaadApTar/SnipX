@@ -13,6 +13,7 @@
 
 #ifdef FEATURE_LZ4
 #include <lz4.h>
+#include <lz4hc.h>
 #endif // FEATURE_LZ4
 
 compression_algorithm dispatch_string(char *compression) {
@@ -52,6 +53,12 @@ decompression_wrapper dispatch_decompression_algorithm(compression_algorithm alg
   case COMPRESSION_INVALID:
   default: return none_decompression_wrapper;
   }
+}
+
+compression_effort dispatch_compression_effort(int level) {
+  if (level < EFFORT_LOW) return EFFORT_LOW;
+  if (level > EFFORT_HIGH) return EFFORT_HIGH;
+  return (compression_effort)level;
 }
 
 size_t get_compression_bound(compression_algorithm algorithm, size_t src_size) {
@@ -189,7 +196,13 @@ void compression_submit(compression_context *ctx, void *data) {
 
 #ifdef FEATURE_ZSTD
 size_t zstd_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
-  return ZSTD_compress(dst, dst_capacity, src, src_size, level);
+  switch (level) {
+  case EFFORT_LOW: return ZSTD_compress(dst, dst_capacity, src, src_size, 1);
+  case EFFORT_MEDIUM: return ZSTD_compress(dst, dst_capacity, src, src_size, 3);
+  case EFFORT_HIGH: return ZSTD_compress(dst, dst_capacity, src, src_size, 5);
+  default:
+    return 0;
+  }
 }
 
 size_t zstd_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size) {
@@ -199,9 +212,18 @@ size_t zstd_decompression_wrapper(void *dst, size_t dst_capacity, void *src, siz
 
 #ifdef FEATURE_LZ4
 size_t lz4_compression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size, int level) {
-  (void) level; // LZ4 default compression does not take compression level.
-  // TODO: consider adding lz4hc as a compression algorithm.
-  return LZ4_compress_default(src, dst, src_size, dst_capacity);
+  // This value is got from: https://github.com/lz4/lz4/blob/dev/doc/lz4_manual.html
+  #define LZ4_ACCELERATION_MAX 65537
+  switch (level) {
+  case EFFORT_LOW: return LZ4_compress_fast(src, dst, src_size, dst_capacity, LZ4_ACCELERATION_MAX / 2);
+  case EFFORT_MEDIUM: return LZ4_compress_default(src, dst, src_size, dst_capacity);
+  case EFFORT_HIGH: {
+    if (src_size > LZ4_MAX_INPUT_SIZE) return 0;
+    return LZ4_compress_HC(src, dst, src_size, dst_capacity, 1);
+  }
+  default:
+    return 0;
+  }
 }
 
 size_t lz4_decompression_wrapper(void *dst, size_t dst_capacity, void *src, size_t src_size) {
