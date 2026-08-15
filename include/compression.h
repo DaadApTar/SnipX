@@ -24,9 +24,9 @@ typedef enum {
 } compression_algorithm;
 
 typedef enum {
-  EFFORT_LOW,
-  EFFORT_MEDIUM,
-  EFFORT_HIGH
+  EFFORT_LOW = 1,
+  EFFORT_MEDIUM = 2,
+  EFFORT_HIGH = 3
 } compression_effort;
 
 /** @brief Compression algorithm wrapper.
