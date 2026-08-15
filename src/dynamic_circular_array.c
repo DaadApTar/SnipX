@@ -98,22 +98,10 @@ int dynamic_circular_array_push(dynamic_circular_array *array, void *data,
     size_t old_capacity = array->capacity;
     size_t new_capacity = new_data_end - next->end;
     if (new_capacity > old_capacity) {
-      size_t survivor_start = next->end + 1;
-      size_t survivor_end = new_data_start - 1;
-
       if (dynamic_circular_array_realloc(array, new_capacity) < 0)
         return -1;
-
-      if (survivor_end >= survivor_start) {
-        size_t span = survivor_end - survivor_start + 1;
-
-        char *scratch = array->data + array->capacity;
-
-        for (size_t k = 0; k < span; k++)
-          scratch[k] = array->data[(survivor_start + k) % old_capacity];
-        for (size_t k = 0; k < span; k++)
-          array->data[(survivor_start + k) % array->capacity] = scratch[k];
-      }
+      size_t diff = new_capacity - old_capacity;
+      memcpy(array->data + (next->end % old_capacity) + 1, array->data, diff);
     }
   }
 
