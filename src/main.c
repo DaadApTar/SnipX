@@ -158,7 +158,7 @@ char *render_video(logger *logger, char *temp_directory,
     void *compressed_frame_data = get_frame_data(pack);
 
     video_capture.decompression(decompressed_frame, video_capture.framesize, compressed_frame_data, header.framesize);
-    void *output;
+    void *output = NULL;
     if (header.type == FRAME_KEYFRAME) {
       memcpy(prev, decompressed_frame, video_capture.framesize);
       output = decompressed_frame;

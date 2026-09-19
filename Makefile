@@ -4,12 +4,15 @@ CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
 
+OPT ?= -O2
+ARCH ?= -march=x86-64
+
 PKGS = dbus-1
 
 VERSION := 0.0.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-CFLAGS := -Wall -Wextra -Iinclude -ggdb
+CFLAGS := -Wall -Wextra -Iinclude -ggdb $(OPT) $(ARCH)
 
 VERSION_FLAGS := -DAPP_VERSION=\"$(VERSION)\" \
 							   -DGIT_COMMIT=\"$(COMMIT)\"

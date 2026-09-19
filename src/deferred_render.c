@@ -84,6 +84,7 @@ defer_video_args *alloc_defer_video_args(dynamic_circular_array *video_buffer, a
   video_args->streams_length = streams_length;
   video_args->streams = calloc(streams_length, sizeof(audio_stream *));
   video_args->mbps = mbps;
+  video_args->video_buffer = NULL;
 
   if (!video_args->streams) {
     goto fail;
