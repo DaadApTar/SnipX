@@ -51,7 +51,8 @@ void *thread_video_capturing(void *arg) {
       log_print(params->logger, LOG_ERROR, "Cannot get image.\n");
       pthread_mutex_unlock(&video_capturing_lock);
     }
-    compression_submit(params->capture.compression_ctx, params->shared_image->data);
+    // TODO: encoding_submit
+    /* compression_submit(params->capture.compression_ctx, params->shared_image->data); */
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);

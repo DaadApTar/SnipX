@@ -5,8 +5,8 @@
  *  Available features:
  *  - FEATURE_COLORS
  *  - FEATURE_SENDER
- *  - FEATURE_ZSTD
- *  - FEATURE_LZ4
+ *  - FEATURE_VAAPI
+ *  - FEATURE_NVENC_FFMPEG
  */
 #ifndef BUILD_FEATURES_H_
 #define BUILD_FEATURES_H_
@@ -37,16 +37,20 @@
 #define FEATURE_SENDER_STRING ANSI_RED"-sender "
 #endif
 
-#ifdef FEATURE_ZSTD
-#define FEATURE_ZSTD_STRING ANSI_GREEN"+zstd "
+#ifdef FEATURE_VAAPI
+#define FEATURE_VAAPI_STRING ANSI_GREEN"+vaapi "
 #else
-#define FEATURE_ZSTD_STRING ANSI_RED"-zstd "
+#define FEATURE_VAAPI_STRING ANSI_RED"-vaapi "
 #endif
 
-#ifdef FEATURE_LZ4
-#define FEATURE_LZ4_STRING ANSI_GREEN"+lz4 "
+#ifdef FEATURE_NVENC_FFMPEG
+#define FEATURE_NVENC_FFMPEG_STRING ANSI_GREEN"+nvenc_ffmpeg "
 #else
-#define FEATURE_LZ4_STRING ANSI_RED"-lz4 "
+#define FEATURE_NVENC_FFMPEG_STRING ANSI_RED"-nvenc_ffmpeg "
+#endif
+
+#if !defined (FEATURE_VAAPI) && !defined (FEATURE_NVENC_FFMPEG)
+#error None of the encoding backends were enabled during compilation. God only knows how you want to record the video with this.
 #endif
 
 #endif

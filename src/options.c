@@ -29,22 +29,21 @@ flag available_flags[] = {
     {"local", 0, "Save clip locally.", LOCALLY, .priority = 0},
 #endif
     {"mbps", 0, "Speed limit of deferred clips file dumping.", MBPS, .priority = 0},
-    {"sources", 0, "Print available sources to record audio.", SOURCES,
-     .priority = 0},
+    {"sources", 0, "Print available sources to record audio.", SOURCES, .priority = 0},
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
+    {"encoder", 'e', "Video encoder. Supported: "
+     #ifdef FEATURE_NVENC_FFMPEG
+     "nvenc_ffmpeg_h264 "
+     "nvenc_ffmpeg_hevc "
+     "nvenc_ffmpeg_av1 "
+     #endif
+     #ifdef FEATURE_VAAPI
+     "vaapi_h264 "
+     "vaapi_hevc "
+     "vaapi_av1 "
+     #endif
+     , ENCODER, .priority = 0},
     {"autocompletion", 'u', "Dump an autocompletion script. Supported: zsh, bash.", AUTOCOMPLETION, .priority = 0},
-#if defined(FEATURE_ZSTD) || defined(FEATURE_LZ4)
-    {"compression", 'c', "Real-time compression algorithm. Supported:"
-     #ifdef FEATURE_ZSTD
-     " zstd"
-     #endif
-     #ifdef FEATURE_LZ4
-     " lz4"
-     #endif
-     ".", COMPRESSION, .priority = 0
-    },
-    {"effort", 'e', "Compression effort (1-3).", COMPRESSION_LEVEL, .priority = 0},
-#endif
     {"debug", 0, "Enable debug logs.", DEBUG, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
     {"version", 'v', "Print the version.", VERSION, .priority = 0},
@@ -65,7 +64,7 @@ void print_usage(char *program) {
   printf("\n");
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
@@ -85,7 +84,7 @@ options *parse_flags(char **args, size_t size) {
   opts->version               = false;
   opts->mbps                  = 50;
   opts->debug                 = false;
-  opts->compression_level     = 1;
+  opts->encoder               = 0;
 #ifdef FEATURE_SENDER
   opts->locally               = false;
 #else
@@ -102,7 +101,7 @@ options *parse_flags(char **args, size_t size) {
       free(opts);
       return 0;
     }
-static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
     switch (option) {
     case SCREEN_NUMBER:
       opts->screen_number = atoi(args[i+1]);
@@ -173,11 +172,8 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
       opts->autocompletion = args[i+1];
       opts->close_after = true;
       break;
-    case COMPRESSION:
-      opts->compression = args[i+1];
-      break;
-    case COMPRESSION_LEVEL:
-      opts->compression_level = atoi(args[i+1]);
+    case ENCODER:
+      opts->encoder = args[i+1];
       break;
     default:
       free(opts);
@@ -189,7 +185,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
   return opts;
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
   [SCREEN_NUMBER] = NUMBER,
@@ -211,10 +207,9 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [OUTPUT] = STRING,
   [SOURCES] = NONE,
   [VERSION] = NONE,
-  [COMPRESSION] = STRING,
-  [COMPRESSION_LEVEL] = NUMBER,
   [AUTOCOMPLETION] = STRING,
   [DEBUG] = NONE,
+  [ENCODER] = STRING,
 };
 
 value_type get_value_type(option_type option) {

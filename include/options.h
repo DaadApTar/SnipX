@@ -28,11 +28,10 @@ typedef enum {
   OUTPUT,
   DEBUG,
   AUTOCOMPLETION,
-  COMPRESSION,
   SOURCES,
   MBPS,
   VERSION,
-  COMPRESSION_LEVEL,
+  ENCODER,
 
   OPTION_TYPE_LENGTH
 } option_type;
@@ -75,8 +74,7 @@ typedef struct {
   int mbps;
   bool sources;
   bool version;
-  char *compression;
-  int compression_level;
+  const char* encoder;
   char *autocompletion;
   bool debug;
 } options;
