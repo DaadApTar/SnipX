@@ -242,7 +242,6 @@ void send_command(logger *logger, uint16_t command) {
   };
   socklen_t addrlen = sizeof(addr);
 
-
   uint8_t command_bytes[] = {
     (uint8_t)(command >> 8),
     (uint8_t)(command & 0xFF),

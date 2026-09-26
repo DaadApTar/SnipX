@@ -1,13 +1,9 @@
 #include <X11/X.h>
 #include <pulse/def.h>
-#include <pulse/sample.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include "assertation.h"
-#include <ctype.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -15,15 +11,13 @@
 
 #include <unistd.h>
 
-#include <pulse/simple.h>
-#include <pulse/error.h>
-
 #include "circular_array.h"
 #include "options.h"
 #include "directory_manager.h"
 
 #include "dynamic_circular_array.h"
 #include "compression.h"
+#include "encoding/encoding.h"
 
 #ifdef FEATURE_ZSTD
 #include <zstd.h>
@@ -307,67 +301,27 @@ bool test_dynamic_circular_array() {
   return assert_done(&test);
 }
 
-bool test_compression() {
-  test test = {.name = "Compression test."};
+bool test_encoder_profiles() {
+  test test = {.name = "Encoder profiles test."};
 
-  assert_int(&test, COMPRESSION_NONE, dispatch_string(NULL));
-  assert_int(&test, COMPRESSION_NONE, dispatch_string("none"));
-  #ifdef FEATURE_ZSTD
-  assert_int(&test, COMPRESSION_ZSTD, dispatch_string("ZSTD"));
-  assert_int(&test, COMPRESSION_ZSTD, dispatch_string("zstd"));
-  #else
-  assert_int(&test, COMPRESSION_INVALID, dispatch_string("ZSTD"));
-  assert_int(&test, COMPRESSION_INVALID, dispatch_string("zstd"));
-  #endif
-  #ifdef FEATURE_LZ4
-  assert_int(&test, COMPRESSION_LZ4, dispatch_string("LZ4"));
-  assert_int(&test, COMPRESSION_LZ4, dispatch_string("lz4"));
-  #else
-  assert_int(&test, COMPRESSION_INVALID, dispatch_string("LZ4"));
-  assert_int(&test, COMPRESSION_INVALID, dispatch_string("lz4"));
-  #endif
+  const char *backend_nvenc_ffmpeg = "nvenc_ffmpeg";
+  const char *backend_vaapi = "vaapi";
 
-  size_t size = 1920*1080*4;
-  assert_int(&test, size, get_compression_bound(COMPRESSION_NONE, size));
-  #ifdef FEATURE_ZSTD
-  assert_int(&test, ZSTD_COMPRESSBOUND(size), get_compression_bound(COMPRESSION_ZSTD, size));
-  #endif
-  #ifdef FEATURE_LZ4
-  assert_int(&test, LZ4_COMPRESSBOUND(size), get_compression_bound(COMPRESSION_LZ4, size));
-  #endif
+  const char *codec_h264 = "h264";
+  const char *codec_hevc = "hevc";
+  const char *codec_av1 = "av1";
 
-  assert_int(&test, *(size_t *)none_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_NONE));
-  #ifdef FEATURE_ZSTD
-  assert_int(&test, *(size_t *)zstd_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_ZSTD));
-  #endif
-  #ifdef FEATURE_LZ4
-  assert_int(&test, *(size_t *)lz4_compression_wrapper, *(size_t *)dispatch_compression_algorithm(COMPRESSION_LZ4));
-  #endif
+  encoding_profile profile;
 
-  char data1[] = {
-    0b10101010,
-    0b01010101
-  };
-  char data2[] = {
-    0b11111111,
-    0b11111111
-  };
-  char result_data[2];
-  char expected[] = {
-    0b01010101,
-    0b10101010
-  };
+  assert_int(&test, 0, get_encoder_profile(backend_nvenc_ffmpeg, codec_h264, &profile));
+  assert_int(&test, BACKEND_NVENC_FFMPEG, profile.backend);
+  assert_int(&test, CODEC_H264, profile.codec);
 
-  xor_delta(result_data, data1, data2, sizeof(data1));
-  assert_int(&test, 0, memcmp(result_data, expected, 2));
+  assert_int(&test, 0, get_encoder_profile(backend_vaapi, codec_av1, &profile));
+  assert_int(&test, BACKEND_VAAPI, profile.backend);
+  assert_int(&test, CODEC_AV1, profile.codec);
 
-  unsigned int data3 = 0xFADE6969;
-  unsigned int data4 = 0xF1DE1337;
-  unsigned int result_data2;
-  unsigned int expected2 = 0xB007A5E;
-
-  xor_delta((char *)&result_data2, (char *)&data3, (char *)&data4, 4);
-  assert_int(&test, 0, memcmp(&result_data2, &expected2, 4));
+  assert_int(&test, -1, get_encoder_profile("something", codec_hevc, &profile));
 
   return assert_done(&test);
 }
@@ -383,6 +337,6 @@ int main() {
   result &= test_parse_flags();
   result &= test_parse_env_string();
   result &= test_dynamic_circular_array();
-  result &= test_compression();
+  result &= test_encoder_profiles();
   return !result;
 }

@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 
 flag available_flags[] = {
     {"screen", 's', "Screen to record.", SCREEN_NUMBER,
@@ -33,16 +32,13 @@ flag available_flags[] = {
     {"output", 'o', "Output directory.", OUTPUT, .priority = 0},
     {"encoder", 'e', "Video encoder. Supported: "
      #ifdef FEATURE_NVENC_FFMPEG
-     "nvenc_ffmpeg_h264 "
-     "nvenc_ffmpeg_hevc "
-     "nvenc_ffmpeg_av1 "
+     "nvenc_ffmpeg, "
      #endif
      #ifdef FEATURE_VAAPI
-     "vaapi_h264 "
-     "vaapi_hevc "
-     "vaapi_av1 "
+     "vaapi, "
      #endif
-     , ENCODER, .priority = 0},
+     "\b\b.", ENCODER, .priority = 0},
+  {"codec", 'c', "Video codec. Supported: h264, hevc, av1.", CODEC, .priority = 0},
     {"autocompletion", 'u', "Dump an autocompletion script. Supported: zsh, bash.", AUTOCOMPLETION, .priority = 0},
     {"debug", 0, "Enable debug logs.", DEBUG, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},
@@ -64,7 +60,7 @@ void print_usage(char *program) {
   printf("\n");
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
 options *parse_flags(char **args, size_t size) {
   options *opts = (options *)malloc(sizeof(options));
   // Default values
@@ -84,7 +80,8 @@ options *parse_flags(char **args, size_t size) {
   opts->version               = false;
   opts->mbps                  = 50;
   opts->debug                 = false;
-  opts->encoder               = 0;
+  opts->encoder               = NULL;
+  opts->codec                 = NULL;
 #ifdef FEATURE_SENDER
   opts->locally               = false;
 #else
@@ -101,7 +98,7 @@ options *parse_flags(char **args, size_t size) {
       free(opts);
       return 0;
     }
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
     switch (option) {
     case SCREEN_NUMBER:
       opts->screen_number = atoi(args[i+1]);
@@ -175,6 +172,9 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
     case ENCODER:
       opts->encoder = args[i+1];
       break;
+    case CODEC:
+      opts->codec = args[i+1];
+      break;
     default:
       free(opts);
       return 0;
@@ -185,7 +185,7 @@ static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
   return opts;
 }
 
-static_assert(OPTION_TYPE_LENGTH - 1 == 21, "New option has been added");
+static_assert(OPTION_TYPE_LENGTH - 1 == 22, "New option has been added");
 value_type value_types[OPTION_TYPE_LENGTH] = {
   [UNKNOWN] = NONE,
   [SCREEN_NUMBER] = NUMBER,
@@ -210,6 +210,7 @@ value_type value_types[OPTION_TYPE_LENGTH] = {
   [AUTOCOMPLETION] = STRING,
   [DEBUG] = NONE,
   [ENCODER] = STRING,
+  [CODEC] = STRING,
 };
 
 value_type get_value_type(option_type option) {
