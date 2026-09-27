@@ -29,7 +29,7 @@ typedef struct {
  *  @return 0 on success, -1 on error.
  *  @note string should be given in this format: backend_codec. For example: nvenc_ffmpeg_av1, vaapi_hevc.
  */
-static int get_encoder_profile(const char *encoder, const char *codec, encoding_profile *profile) {
+int get_encoder_profile(const char *encoder, const char *codec, encoding_profile *profile) {
   if (profile == NULL) return -1;
   if (encoder == NULL) return -1;
   if (codec == NULL) return -1;
