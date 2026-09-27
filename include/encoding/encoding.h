@@ -3,8 +3,6 @@
 
 #include <string.h>
 
-#include "build_features.h"
-
 typedef enum {
   BACKEND_NVENC_FFMPEG = 0,
   BACKEND_VAAPI = 1,
@@ -31,7 +29,10 @@ typedef struct {
  *  @return 0 on success, -1 on error.
  *  @note string should be given in this format: backend_codec. For example: nvenc_ffmpeg_av1, vaapi_hevc.
  */
-inline int get_encoder_profile(const char *encoder, const char *codec, encoding_profile *profile) {
+static int get_encoder_profile(const char *encoder, const char *codec, encoding_profile *profile) {
+  if (profile == NULL) return -1;
+  if (encoder == NULL) return -1;
+  if (codec == NULL) return -1;
   profile->backend = BACKEND_INVALID;
   profile->codec = CODEC_INVALID;
 #ifdef FEATURE_NVENC_FFMPEG
@@ -40,7 +41,7 @@ inline int get_encoder_profile(const char *encoder, const char *codec, encoding_
 #ifdef FEATURE_VAAPI
   if (strcasecmp(encoder, "vaapi") == 0) profile->backend = BACKEND_VAAPI;
 #endif
-  if (strcasecmp(codec, "h264") == 0) profile->codec = CODEC_H264;
+  if (strcasecmp(codec, "h.264") == 0) profile->codec = CODEC_H264;
   if (strcasecmp(codec, "hevc") == 0) profile->codec = CODEC_HEVC;
   if (strcasecmp(codec, "av1") == 0) profile->codec = CODEC_AV1;
 

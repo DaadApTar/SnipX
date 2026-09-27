@@ -38,7 +38,7 @@ flag available_flags[] = {
      "vaapi, "
      #endif
      "\b\b.", ENCODER, .priority = 0},
-  {"codec", 'c', "Video codec. Supported: h264, hevc, av1.", CODEC, .priority = 0},
+  {"codec", 'c', "Video codec. Supported: h.264, hevc, av1.", CODEC, .priority = 0},
     {"autocompletion", 'u', "Dump an autocompletion script. Supported: zsh, bash.", AUTOCOMPLETION, .priority = 0},
     {"debug", 0, "Enable debug logs.", DEBUG, .priority = 0},
     {"help", 'h', "Print this message.", HELP, .priority = 0},

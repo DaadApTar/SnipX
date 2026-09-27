@@ -4,7 +4,6 @@
 #include <bits/pthreadtypes.h>
 #include <errno.h>
 #include <stdatomic.h>
-#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -14,7 +13,6 @@
 #include <pthread.h>
 #include "ffmpeg.h"
 #include "directory_manager.h"
-#include "defaults.h"
 #include "sender.h"
 #include "pulseaudio.h"
 #include "deferred_render.h"
@@ -23,6 +21,7 @@
 #include <version.h>
 #include "x11.h"
 #include "compression.h"
+#include "encoding/encoding.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -299,7 +298,7 @@ int main(int argc, char **argv) {
   }
   if (opts->autocompletion != 0) {
     if (generate_autocompletion_script(&logger, opts->autocompletion) < 0) return 1;
-    else return 0;
+    return 0;
   }
 
   dbus_conn_new(&logger);
@@ -318,6 +317,15 @@ int main(int argc, char **argv) {
     log_close(&logger);
     return 0;
   }
+
+  encoding_profile profile;
+
+  if (get_encoder_profile(opts->encoder, opts->codec, &profile) < 0) {
+    log_print(&logger, LOG_ERROR, "Invalid encoding backend or codec.\n");
+    return 1;
+  }
+
+  log_print(&logger, LOG_DEBUG, "Encoder: %s (%d), Codec: %s (%d)\n", opts->encoder, profile.backend, opts->codec, profile.codec);
 
   log_print(&logger, LOG_INFO, "Opening socket.\n");
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
