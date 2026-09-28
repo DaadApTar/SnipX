@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 #define VIDEO_ARG_CAPACITY 64
 
@@ -181,20 +182,39 @@ int ffmpeg_push_frame(ffmpeg *instance, void *data, ssize_t size) {
 }
 
 int ffmpeg_close(ffmpeg *instance) {
-  int ret = close(instance->pipefd);
-  if (ret == -1) {
+  if (!instance) {
+    errno = EINVAL;
     return -1;
   }
-  ret = waitpid(instance->pid, 0, 0);
-  if (ret == -1) {
-    return -1;
-  }
+
+  int close_result = close(instance->pipefd);
+  int close_error = errno;
+  int status;
+  pid_t waited;
+  do {
+    waited = waitpid(instance->pid, &status, 0);
+  } while (waited == -1 && errno == EINTR);
+  int wait_error = errno;
   free(instance);
+
+  if (waited == -1) {
+    errno = wait_error;
+    return -1;
+  }
+  if (close_result == -1) {
+    errno = close_error;
+    return -1;
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    errno = EIO;
+    return -1;
+  }
   return 0;
 }
 
 ffmpeg *ffmpeg_render_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, video_components components) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
+  if (!result) return NULL;
   int ffmpeg_pipe[2];
 
   if (pipe(ffmpeg_pipe) < 0) {
@@ -204,6 +224,8 @@ ffmpeg *ffmpeg_render_video(char *videoname, int screen_width, int screen_height
 
   pid_t pid = fork();
   if (pid < 0) {
+    close(ffmpeg_pipe[0]);
+    close(ffmpeg_pipe[1]);
     free(result);
     return 0;
   }
@@ -304,8 +326,7 @@ ffmpeg *ffmpeg_render_video(char *videoname, int screen_width, int screen_height
 
     int status_code = execvp("ffmpeg", argv);
     if (status_code < 0) {
-      free(result);
-      return 0;
+      _exit(127);
     }
   }
 

@@ -27,8 +27,9 @@ ffmpeg *ffmpeg_render_video(char *videoname, int screen_width, int screen_height
 int ffmpeg_push_frame(ffmpeg *instance, void *data, ssize_t size);
 
 /** @brief Closes fffmpeg instance.
+ *  Waits for the encoder and frees the instance, including on failure.
  *  @param[in] instance ffmpeg instance.
- *  @return 0 if succeed, -1 on error.
+ *  @return 0 if the encoder exits successfully, -1 on error or encoder failure.
  */
 int ffmpeg_close(ffmpeg *instance);
 

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include "log.h"
 #include <unistd.h>
@@ -145,6 +146,7 @@ char *render_deferred_video(logger *logger, char *temp_directory,
                             options *opts, video_components components, unsigned int screen_width,
                             unsigned int screen_height) {
   char *video_filename = (char*)malloc(PATH_MAX);
+  if (!video_filename) return NULL;
 #ifdef FEATURE_SENDER
   if (opts->locally) snprintf(video_filename, PATH_MAX, "%s/%s.mp4", !opts->output ? "." : opts->output, log_get_time());
   else snprintf(video_filename, PATH_MAX, "%s/%s.mp4", temp_directory, log_get_time());
@@ -156,7 +158,18 @@ char *render_deferred_video(logger *logger, char *temp_directory,
   log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
   ffmpeg *video = ffmpeg_render_video(video_filename, screen_width, screen_height, opts->fps, opts->bitrate, components);
 
-  ffmpeg_close(video);
+  if (!video || ffmpeg_close(video) < 0) {
+    log_print(logger, LOG_ERROR, "Video rendering failed; keeping deferred source files.\n");
+    free(video_filename);
+    return NULL;
+  }
+
+  struct stat output;
+  if (stat(video_filename, &output) < 0 || !S_ISREG(output.st_mode) || output.st_size == 0) {
+    log_print(logger, LOG_ERROR, "Rendered video is missing or empty; keeping deferred source files.\n");
+    free(video_filename);
+    return NULL;
+  }
 
   return video_filename;
 }
@@ -526,9 +539,15 @@ int main(int argc, char **argv) {
 
       send_notification(&logger, "Rendering has started.");
 
+      size_t clips_before_render = deferred_clips_amount;
+      bool render_failed = false;
       for (size_t i = 0; i < DEFERRED_CLIPS_CAPACITY; ++i) {
         if (deferred_clips[i].video_file == 0) continue;
         char *video_filepath = render_deferred_video(&logger, temp_directory, opts, deferred_clips[i], x11.capture.screen_width, x11.capture.screen_height);
+        if (!video_filepath) {
+          render_failed = true;
+          continue;
+        }
 
 #ifdef FEATURE_SENDER
         if (!opts->locally) {
@@ -548,6 +567,8 @@ int main(int argc, char **argv) {
         delete_video_components(&deferred_clips[i]);
         deferred_clips_amount--;
       }
+      // Keep failed clips' group IDs reserved for a later retry.
+      if (render_failed) deferred_clips_amount = clips_before_render;
       free(temp_directory);
     }
     memset(socket_buffer, 0, SOCKET_BUFFER_SIZE);

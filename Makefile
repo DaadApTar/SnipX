@@ -32,7 +32,7 @@ OBJ_FILES := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
 # Exclude main.o from test builds
 TEST_OBJ_SRC := $(filter-out $(SRC_DIR)/main.c, $(SRC_FILES))
 TEST_OBJ := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(TEST_OBJ_SRC))
-TEST_SRC := $(wildcard $(TEST_DIR)/*.c)
+TEST_SRC := $(filter-out $(TEST_DIR)/render_failure_tests.c, $(wildcard $(TEST_DIR)/*.c))
 TEST_OBJ += $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%.test.o, $(TEST_SRC))
 TEST_BIN := $(BUILD_DIR)/test_runner
 
@@ -50,7 +50,7 @@ include features.mk
 
 TARGET := $(BUILD_DIR)/$(TARGET_NAME)
 
-.PHONY: all clean test
+.PHONY: all clean test test-render-failure
 
 all: $(TARGET) $(SENDER_TARGET)
 
@@ -86,6 +86,12 @@ $(TEST_BIN): $(TEST_OBJ)
 # Compile test files
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@ $(VERSION_FLAGS)
+
+# Exercise rendering without requiring a running desktop or audio server.
+test-render-failure: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections -Dmain=snipx_main -c $(SRC_DIR)/main.c -o $(BUILD_DIR)/main.render-test.o $(VERSION_FLAGS)
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections $(TEST_DIR)/render_failure_tests.c $(BUILD_DIR)/main.render-test.o $(SRC_DIR)/ffmpeg.c $(SRC_DIR)/log.c $(SRC_DIR)/directory_manager.c $(SRC_DIR)/deferred_render.c $(SRC_DIR)/circular_array.c -Wl,--gc-sections -o $(BUILD_DIR)/render_failure_tests $(LDFLAGS)
+	./$(BUILD_DIR)/render_failure_tests
 
 -include $(BUILD_CONFIG)
 
