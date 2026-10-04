@@ -18,4 +18,5 @@ endif
 
 ifeq ($(NVENC_FFMPEG), 1)
 CFLAGS += -DFEATURE_NVENC_FFMPEG
+LDFLAGS += -lavcodec -lavutil -lswscale
 endif

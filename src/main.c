@@ -20,8 +20,8 @@
 #include "notification.h"
 #include <version.h>
 #include "x11.h"
-#include "compression.h"
 #include "encoding/encoding.h"
+#include "encoding/nvenc_ffmpeg.h"
 
 /** @brief Prints an error and exits with exit code 1.
  *  @param logger logger
@@ -439,6 +439,21 @@ int main(int argc, char **argv) {
 
   prepare_pulseaudio(&pa, &logger, state);
 
+  // Initialising encoding
+  log_print(&logger, LOG_INFO, "Initalising encoder.\n");
+  encoding_interface encoding;
+  nvenc_ffmpeg_context encoding_context;
+  encoding.init = nvenc_ffmpeg_init;
+  encoding.submit_frame = nvenc_ffmpeg_submit;
+  encoding.stop = nvenc_ffmpeg_stop;
+  encoding.close = nvenc_ffmpeg_close;
+
+  encoding_codec codec = CODEC_H264;
+
+  encoding.init(&logger, &encoding_context, gop_length, opts->bitrate, codec, x11.capture.screen_width, x11.capture.screen_height, opts->fps, &video_ring_buffer);
+  encoding.context = &encoding_context;
+  x11.capture.encoding = &encoding;
+
 #ifdef FEATURE_SENDER
   char port[8];
   snprintf(port, 8, "%d", opts->port);
@@ -453,9 +468,6 @@ int main(int argc, char **argv) {
   log_print(&logger, LOG_INFO, "Creating sender thread.\n");
   pthread_create(&sender_thread, 0, thread_send_temp_files, (void *)&temp_sender_params);
 #endif
-
-  // Initialising compression
-  log_print(&logger, LOG_INFO, "Creating compession thread.\n");
 
   log_print(&logger, LOG_INFO, "Creating video thread.\n");
   pthread_create(&video_thread, 0, thread_video_capturing, (void *)&x11);

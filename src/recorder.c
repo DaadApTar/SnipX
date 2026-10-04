@@ -42,6 +42,7 @@ void *get_frame_data(void *packed_frame) {
 
 void *thread_video_capturing(void *arg) {
   snipx_x11 *params = arg;
+  int i = 0;
   while (atomic_load(&video_capturing_running_flag)) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -53,6 +54,11 @@ void *thread_video_capturing(void *arg) {
     }
     // TODO: encoding_submit
     /* compression_submit(params->capture.compression_ctx, params->shared_image->data); */
+    params->capture.encoding->submit_frame(
+      params->capture.encoding->context,
+      params->shared_image->data,
+      params->shared_image->bytes_per_line,
+      i);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     long elapsed_ns = (end.tv_sec - start.tv_sec) * 1e9 + (end.tv_nsec - start.tv_nsec);
@@ -64,6 +70,7 @@ void *thread_video_capturing(void *arg) {
       };
       nanosleep(&sleep_time, 0);
     }
+    i++;
   }
   if (!atomic_load(&video_capturing_running_flag)) {
     pthread_mutex_lock(&video_capturing_lock);

@@ -10,9 +10,7 @@
 
 #include "circular_array.h"
 #include "dynamic_circular_array.h"
-#include "compression.h"
-
-#include <string.h>
+#include "encoding/encoding.h"
 
 #define FRAME_NS(framerate) (long)((double)1/(double)framerate*1e9)
 
@@ -30,9 +28,8 @@ typedef struct {
   int screen_height;
   int framerate;
   size_t framesize;
-  decompression_wrapper decompression;
   dynamic_circular_array *ring_buffer;
-  compression_context *compression_ctx;
+  encoding_interface *encoding;
   unsigned int gop_length;
 } video_capture;
 

@@ -28,7 +28,7 @@ TEST_DIR := tests
 SNIPX_SENDER_DIR = ./tools/snipx-sender
 
 # Source and object files
-SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
+SRC_FILES := $(shell find $(SRC_DIR) -name "*.c")
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
 
 # Exclude main.o from test builds
@@ -71,6 +71,7 @@ endif
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@ $(VERSION_FLAGS)
 
 # Build directory
