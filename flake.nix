@@ -25,6 +25,7 @@
         dbus
         zstd
         lz4
+        ffmpeg-full
       ];
 
       buildPhase = ''

@@ -26,6 +26,9 @@ variables:
     libdbus-1-dev
     libzstd-dev
     liblz4-dev
+    libavcodec-dev
+    libavutil-dev
+    libswscale-dev
 
 .apt_cache: &apt_cache
   key: apt-cache-v1
