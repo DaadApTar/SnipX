@@ -1,8 +1,5 @@
 #include "recorder.h"
-#include <stdio.h>
 #include <time.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <X11/Xutil.h>

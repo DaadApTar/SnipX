@@ -15,6 +15,9 @@ typedef struct {
   AVFrame *frame;
   AVPacket *pkt;
   dynamic_circular_array *array;
+
+  size_t packet_buffer_size;
+  void *packet_buffer;
 } nvenc_ffmpeg_context;
 
 /**

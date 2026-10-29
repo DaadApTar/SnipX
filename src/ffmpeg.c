@@ -92,15 +92,9 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
     argv[n++] = "-y";
 
     argv[n++] = "-f";
-    argv[n++] = "rawvideo";
+    argv[n++] = "h264";
 
-    argv[n++] = "-pix_fmt";
-    argv[n++] = "bgr0";
-
-    argv[n++] = "-s";
-    argv[n++] = resolution;
-
-    argv[n++] = "-r";
+    argv[n++] = "-framerate";
     argv[n++] = framerate;
 
     argv[n++] = "-i";
@@ -156,6 +150,9 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
 
     argv[n++] = "-pix_fmt";
     argv[n++] = "yuv420p";
+
+    argv[n++] = "-framerate";
+    argv[n++] = framerate;
 
     argv[n++] = videoname;
     argv[n++] = NULL;

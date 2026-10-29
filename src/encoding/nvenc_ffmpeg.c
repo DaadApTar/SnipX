@@ -6,11 +6,22 @@
 #include <libavutil/imgutils.h>
 #include <string.h>
 
+#include "recorder.h"
+
 #define AV_ERROR(logger, code) do {                       \
 char buf[AV_ERROR_MAX_STRING_SIZE]; \
 av_strerror(code, buf, AV_ERROR_MAX_STRING_SIZE); \
 log_print(logger, LOG_ERROR, "%s\n", buf); \
 } while (0)
+
+int push_frame(nvenc_ffmpeg_context *ctx) {
+  frame_header header;
+  header.type = (ctx->pkt->flags & AV_PKT_FLAG_KEY) != 0 ? FRAME_KEYFRAME : FRAME_PREDICTED;
+  header.pts = ctx->pkt->pts;
+  header.dts = ctx->pkt->dts;
+  header.framesize = ctx->pkt->size;
+  return push_frame_with_header(ctx->array, ctx->pkt->data, ctx->pkt->size, header, ctx->packet_buffer, ctx->packet_buffer_size);
+}
 
 int nvenc_ffmpeg_init(logger *logger, void *context, unsigned int gop_length, unsigned int bitrate, encoding_codec codec, unsigned int width, unsigned int height, unsigned int fps, dynamic_circular_array *array) {
   if (context == NULL) {
@@ -84,6 +95,13 @@ int nvenc_ffmpeg_init(logger *logger, void *context, unsigned int gop_length, un
 
   ctx->pkt = av_packet_alloc();
 
+  ctx->packet_buffer_size = width * height * 4;
+  ctx->packet_buffer = malloc(ctx->packet_buffer_size);
+  if (ctx->packet_buffer == NULL) {
+    log_print(ctx->logger, LOG_ERROR, "Could not allocate packet buffer.\n");
+    goto fail;
+  }
+
   return 0;
   fail:
   nvenc_ffmpeg_close(ctx);
@@ -106,7 +124,7 @@ int nvenc_ffmpeg_submit(void *context, const void *frame, int bytes_per_line, in
   }
 
   while (avcodec_receive_packet(ctx->codec_ctx, ctx->pkt) == 0) {
-    if (dynamic_circular_array_push(ctx->array, ctx->pkt->data, ctx->pkt->size) != 0) {
+    if (push_frame(ctx) != 0) {
       log_print(ctx->logger, LOG_ERROR, "Could not enqueue packet.\n");
       av_packet_unref(ctx->pkt);
       return -1;
@@ -121,7 +139,7 @@ int nvenc_ffmpeg_stop(void *context) {
   nvenc_ffmpeg_context *ctx = (nvenc_ffmpeg_context *)context;
   avcodec_send_frame(ctx->codec_ctx, NULL);
   while (avcodec_receive_packet(ctx->codec_ctx, ctx->pkt) == 0) {
-    if (dynamic_circular_array_push(ctx->array, ctx->pkt->data, ctx->pkt->size) != 0) {
+    if (push_frame(ctx) != 0) {
       log_print(ctx->logger, LOG_ERROR, "Could not enqueue packet.\n");
       av_packet_unref(ctx->pkt);
       return -1;

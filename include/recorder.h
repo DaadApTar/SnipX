@@ -39,9 +39,8 @@ typedef enum {
 } frame_type;
 
 typedef struct {
+  uint64_t pts, dts;
   frame_type type;
-  // TODO: timestamp
-  uint64_t timestamp;
   uint64_t framesize;
 } frame_header;
 

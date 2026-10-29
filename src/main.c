@@ -128,31 +128,27 @@ char *render_video(logger *logger, char *temp_directory,
 
   // Find closest i frame
   // TODO: reconsider the logic of rendering.
-  /*
-  size_t closest_i_frame = SIZE_MAX;
+  ssize_t closest_i_frame = -1;
   size_t lower_bound = video_capture.ring_buffer->next_index - video_capture.ring_buffer->items_length;
   log_print(logger, LOG_DEBUG, "gop_length: %zu\n", video_capture.gop_length);
-  for (size_t i = video_start; i > lower_bound; --i) {
+  for (size_t i = video_start; i >= lower_bound; --i) {
     size_t pack_size;
     void *pack = dynamic_circular_array_get(video_capture.ring_buffer, i, &pack_size);
     frame_header header = get_frame_header(pack);
     bool is_keyframe = header.type == FRAME_KEYFRAME;
     free(pack);
 
-  log_print(logger, LOG_DEBUG, "i-frame?: %s\tsize: %zu\n", is_keyframe ? "true" : "false", header.framesize);
+    log_print(logger, LOG_DEBUG, "i-frame?: %s\tsize: %zu\n", is_keyframe ? "true" : "false", header.framesize);
     if (is_keyframe) {
       closest_i_frame = i;
       break;
     }
   }
-  log_print(logger, LOG_DEBUG, "start frame: %zu\ti-frame index: %zu\n", video_start, closest_i_frame);
+  log_print(logger, LOG_DEBUG, "start frame: %zu\ti-frame index: %zd\n", video_start, closest_i_frame);
 
   // Restore starting frame.
   // TODO: Consider handling this error.
-  assert(closest_i_frame != SIZE_MAX);
-  void *decompressed_frame = malloc(video_capture.framesize);
-  void *delta_frame = malloc(video_capture.framesize);
-  void *prev = malloc(video_capture.framesize);
+  assert(closest_i_frame != -1);
   size_t keyframes = 0;
   size_t predicted_frames = 0;
   for (size_t i = closest_i_frame; i < video_capture.ring_buffer->next_index; ++i) {
@@ -160,27 +156,10 @@ char *render_video(logger *logger, char *temp_directory,
     void *pack = dynamic_circular_array_get(video_capture.ring_buffer, i, &pack_size);
     frame_header header = get_frame_header(pack);
     void *compressed_frame_data = get_frame_data(pack);
+    ffmpeg_push_frame(video, compressed_frame_data, header.framesize);
 
-    video_capture.decompression(decompressed_frame, video_capture.framesize, compressed_frame_data, header.framesize);
-    void *output = NULL;
-    if (header.type == FRAME_KEYFRAME) {
-      memcpy(prev, decompressed_frame, video_capture.framesize);
-      output = decompressed_frame;
-      keyframes += i >= video_start;
-    }
-    if (header.type == FRAME_PREDICTED) {
-      xor_delta(delta_frame, decompressed_frame, prev, video_capture.framesize);
-      memcpy(prev, delta_frame, video_capture.framesize);
-      output = delta_frame;
-      predicted_frames += i >= video_start;
-    }
-    if (i >= video_start)
-      ffmpeg_push_frame(video, output, video_capture.framesize);
     free(pack);
   }
-  free(delta_frame);
-  free(prev);
-  */
 
   ffmpeg_close(video);
 
@@ -396,7 +375,7 @@ int main(int argc, char **argv) {
   size_t frame_size = x11.shared_image->bytes_per_line * x11.shared_image->height;
   size_t items_amount = opts->fps * opts->length;
   log_print(&logger, LOG_INFO, "Initialising video buffer.\n");
-  dynamic_circular_array_init(&video_ring_buffer, 1024 /*TODO: 1024 is a filler value */, items_amount + gop_length);
+  dynamic_circular_array_init(&video_ring_buffer, opts->bitrate * opts->length, items_amount + gop_length);
   log_print(&logger, LOG_INFO, "Initialising audio buffers.\n");
   dynamic_circular_array_init(&desktop_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
   dynamic_circular_array_init(&mic_audio_ring_buffer, SNIPX_PA_AUDIO_BYTES_PER_FRAME(opts->fps) * items_amount, items_amount);
