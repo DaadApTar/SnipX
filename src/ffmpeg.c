@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 
 #define VIDEO_ARG_CAPACITY 64
+#define VIDEO_FILTER_CAPACITY 128
 
 ffmpeg *ffmpeg_init_sound(char *soundname) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
@@ -55,7 +56,7 @@ ffmpeg *ffmpeg_init_sound(char *soundname) {
   return result;
 }
 
-ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_cap, char **filenames) {
+ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, int fps, int bitrate, unsigned int sound_files_cap, char **filenames, size_t skip_frames) {
   ffmpeg *result = (ffmpeg *)malloc(sizeof(ffmpeg));
   int ffmpeg_pipe[2];
 
@@ -99,13 +100,19 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
 
     argv[n++] = "-i";
     argv[n++] = "-";
-    
+
     unsigned int audio_amount = 0;
     for (size_t i = 0; i < sound_files_cap && filenames[i] != NULL; ++i) {
       argv[n++] = "-i";
       argv[n++] = filenames[i];
       audio_amount++;
     }
+
+    char vf[VIDEO_FILTER_CAPACITY] = {0};
+    snprintf(vf, sizeof(vf), "select='gte(n,%zu)',setpts=PTS-STARTPTS", skip_frames);
+
+    argv[n++]= "-vf";
+    argv[n++]= vf;
 
     argv[n++] = "-map";
     argv[n++] = "0:v";
@@ -119,9 +126,9 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
         cap = (offset + needed) * 2;
         filter = realloc(filter, cap);
       }
-      offset += snprintf(filter+offset, 128 - offset, "[%zu:a]", i+1);
+      offset += snprintf(filter+offset, cap - offset, "[%zu:a]", i+1);
     }
-    int needed = snprintf(NULL, 0, "amix=inputs=%du[a]", audio_amount);
+    int needed = snprintf(NULL, 0, "amix=inputs=%d[a]", audio_amount);
     if (offset + (size_t)needed + 1 > cap) {
       cap = (offset + needed) * 2;
       filter = realloc(filter, cap);
@@ -151,13 +158,14 @@ ffmpeg *ffmpeg_init_video(char *videoname, int screen_width, int screen_height, 
     argv[n++] = "-pix_fmt";
     argv[n++] = "yuv420p";
 
-    argv[n++] = "-framerate";
+    argv[n++] = "-r";
     argv[n++] = framerate;
 
     argv[n++] = videoname;
     argv[n++] = NULL;
 
     int status_code = execvp("ffmpeg", argv);
+    free(filter);
     if (status_code < 0) {
       free(result);
       return 0;
@@ -266,7 +274,7 @@ ffmpeg *ffmpeg_render_video(char *videoname, int screen_width, int screen_height
         cap = (offset + needed) * 2;
         filter = realloc(filter, cap);
       }
-      offset += snprintf(filter+offset, 128 - offset, "[%zu:a]", i+1);
+      offset += snprintf(filter+offset, cap - offset, "[%zu:a]", i+1);
     }
     int needed = snprintf(NULL, 0, "amix=inputs=%du[a]", amount);
     if (offset + (size_t)needed + 1 > cap) {

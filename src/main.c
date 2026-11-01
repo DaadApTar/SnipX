@@ -123,9 +123,6 @@ char *render_video(logger *logger, char *temp_directory,
   if (video_capture.ring_buffer->next_index < (size_t)(opts->fps * opts->length)) video_start = 0;
   else video_start = video_capture.ring_buffer->next_index - opts->fps * opts->length;
 
-  log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
-  ffmpeg *video = ffmpeg_init_video(video_filename, video_capture.screen_width, video_capture.screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files);
-
   // Find closest i frame
   // TODO: reconsider the logic of rendering.
   ssize_t closest_i_frame = -1;
@@ -146,11 +143,15 @@ char *render_video(logger *logger, char *temp_directory,
   }
   log_print(logger, LOG_DEBUG, "start frame: %zu\ti-frame index: %zd\n", video_start, closest_i_frame);
 
-  // Restore starting frame.
   // TODO: Consider handling this error.
   assert(closest_i_frame != -1);
-  size_t keyframes = 0;
-  size_t predicted_frames = 0;
+
+  log_print(logger, LOG_INFO, "Flushing video into %s\n", video_filename);
+  const size_t skip_frames = closest_i_frame < video_start ? video_start - closest_i_frame : 0;
+  log_print(logger, LOG_DEBUG, "Skip frames: %zu\n", skip_frames);
+  ffmpeg *video = ffmpeg_init_video(video_filename, video_capture.screen_width, video_capture.screen_height, opts->fps, opts->bitrate, SOUND_FILES_CAPACITY, sound_files, skip_frames);
+
+  // Restore starting frame.
   for (size_t i = closest_i_frame; i < video_capture.ring_buffer->next_index; ++i) {
     size_t pack_size = 0;
     void *pack = dynamic_circular_array_get(video_capture.ring_buffer, i, &pack_size);
