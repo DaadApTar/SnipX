@@ -246,6 +246,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // Bitrate provided by the user is in Kbps, but every program uses bps.
+  opts->bitrate = opts->bitrate * 1000;
+
   logger logger;
   log_init(&logger, opts->debug);
 
